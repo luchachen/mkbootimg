@@ -36,7 +36,8 @@ def auto_unpack(fmt, f):
 def get_magic_off(f):
     BOOT_MAGIC = 'ANDROID!'.encode()
 
-    for i in range(513):
+    #mtk v1 sign BFBF offset 0x4040(16448)
+    for i in range(16448+513):
         f.seek(i)
         tmp = f.read(len(BOOT_MAGIC))
         if tmp == BOOT_MAGIC:
@@ -66,7 +67,13 @@ def read_header(args, off):
     parsed.name = unpacked[11].partition(b'\0')[0].decode()
     parsed.cmdline = unpacked[12].partition(b'\0')[0].decode()
     parsed.id = unpacked[13]
-    parsed.cmdline += unpacked[14].partition(b'\0')[0].decode()
+    extracmdline = ''
+    try:
+        extracmdline = unpacked[14].partition(b'\0')[0].decode()
+    except:
+        print("Not found extra cmdline %s" % extracmdline)
+    finally:
+        parsed.cmdline += extracmdline
 
     os_version = unpacked[10]>>11
     os_patch_level = unpacked[10]&0x7ff
