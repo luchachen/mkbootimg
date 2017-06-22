@@ -17,10 +17,13 @@ from __future__ import print_function
 from sys import argv, exit, stderr
 from argparse import ArgumentParser, FileType, Action
 from os import fstat
+from os.path import basename, dirname,join
 from struct import pack
 from hashlib import sha1
 import sys
 import re
+import json
+import glob
 
 def filesize(f):
     if f is None:
@@ -127,10 +130,38 @@ def parse_os_patch_level(x):
         return (y << 4) | m
     return 0
 
+class JSONAction(Action):
+    """An argparse action that concatenates "-i" "PartName filepath" """
+
+    def __call__(self, parser, namespace, value, name):
+        setattr(namespace, self.dest, value)
+        try:
+            _dict = json.load(value)
+            (_prefix, _ext) = basename(value.name).split('-')
+            _prefix = join(dirname(value.name),_prefix)
+            mfns = glob.glob(_prefix+'-zImage*')
+            if len(mfns) > 1:
+                print('warning: too many files %s' % mfns)
+            setattr(namespace, 'kernel', open(mfns[0]))
+            mfns =glob.glob(_prefix+'-ramdisk.*')
+            if len(mfns) > 1:
+                print('warning: too many files %s' % mfns)
+            setattr(namespace, 'ramdisk', open(mfns[0]))
+            setattr(namespace, 'second', open(_prefix+'-second'))
+            setattr(namespace, 'dt', open(_prefix+'-dt'))
+        except (IOError, ValueError):
+            _dict = {}
+        for k, v in _dict.items():
+            if v is not None:
+                setattr(namespace, k, v)
+
 def parse_cmdline():
     parser = ArgumentParser()
-    parser.add_argument('--kernel', help='path to the kernel', type=FileType('rb'),
+
+    parser.add_argument('-i', '--input', help='input bootimg.json file name', type=FileType('rb'), action=JSONAction,
                         required=True)
+    parser.add_argument('--kernel', help='path to the kernel', type=FileType('rb'),
+                        required=False)
     parser.add_argument('--ramdisk', help='path to the ramdisk', type=FileType('rb'))
     parser.add_argument('--second', help='path to the 2nd bootloader', type=FileType('rb'))
     parser.add_argument('--cmdline', help='extra arguments to be passed on the '

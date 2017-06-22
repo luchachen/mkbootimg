@@ -61,7 +61,7 @@ class Bunch:
                 for k, v in self.__dict__.items():
                     if k == 'id':
                         _data[k] = binascii.hexlify(v)
-                    else:
+                    elif k != 'path':
                         _data[k] = v
                 json.dump(_data, f, indent=2, skipkeys=True)
             finally:
