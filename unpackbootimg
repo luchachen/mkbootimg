@@ -186,9 +186,11 @@ def fix_ramdisk_extension(filename):
         bytes = unpack('BB', data)
 
     if bytes[0]==0x02 and bytes[1]==0x21:
-        rename(filename, filename+'.lz4')
+        fn = filename+'.lz4'
     else:
-        rename(filename, filename+'.gz')
+        fn = filename+'.gz'
+    rename(filename, fn)
+    return fn
 
 def is_gzip_package(filename):
     bytes = []
@@ -244,7 +246,7 @@ def write_data(args, header, off):
     write_input_to_file(args, file_prefix+'second', header.second_size)
     write_input_to_file(args, file_prefix+'dt', header.dt_size)
 
-    fix_ramdisk_extension(file_prefix+'ramdisk')
+    fn = fix_ramdisk_extension(file_prefix+'ramdisk')
 
     if header.kernel_size >= 2:
         if is_gzip_package(file_prefix+'zImage'):
