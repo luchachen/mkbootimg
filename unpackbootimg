@@ -20,13 +20,57 @@ from os import rename, makedirs
 from os.path import basename, exists
 from struct import unpack, calcsize
 import zlib
+import os, json, binascii
 
 def ROUNDDOWN(number, alignment):
     return ((number) & ~((alignment)-1))
 
+
 class Bunch:
     def __init__(self, **kwds):
         self.__dict__.update(kwds)
+        self.path = os.path.join(os.getcwd(), 'bootimg.json')
+
+    def Get(self, path):
+        self.path = path
+        self._Load()
+        return self.__dict__
+
+    def _Load(self):
+        if self.path is not None:
+            try:
+                f = open(self.path)
+                try:
+                    self.__dict__ = json.load(f)
+                finally:
+                    f.close()
+            except (IOError, ValueError):
+                try:
+                    os.remove(self.path)
+                except OSError:
+                    pass
+                self.__dict__= {}
+
+    def Save(self, path=None):
+        if path is not None:
+            self.path = path
+        try:
+            f = open(self.path, 'w')
+            try:
+                _data = {}
+                for k, v in self.__dict__.items():
+                    if k == 'id':
+                        _data[k] = binascii.hexlify(v)
+                    else:
+                        _data[k] = v
+                json.dump(_data, f, indent=2, skipkeys=True)
+            finally:
+                f.close()
+        except (IOError, TypeError):
+            try:
+                os.remove(self.path)
+            except OSError:
+                pass
 
 def auto_unpack(fmt, f):
     size = calcsize(fmt)
@@ -177,6 +221,7 @@ def write_data(args, header, off):
     if not exists(args.output):
         makedirs(args.output)
 
+    """
     write_str_to_file(file_prefix+'cmdline', header.cmdline)
     write_str_to_file(file_prefix+'base', '%08x' % header.base)
     write_str_to_file(file_prefix+'kernel_offset', '%08x' % header.kernel_offset)
@@ -189,7 +234,9 @@ def write_data(args, header, off):
         write_str_to_file(file_prefix+'os_version', header.os_version)
     if header.os_patch_level:
         write_str_to_file(file_prefix+'os_patch_level', header.os_patch_level)
+    """
 
+    header.Save(file_prefix+'bootimg.json')
     seek_padding(args.input, header.headersz, args.pagesize)
 
     write_input_to_file(args, file_prefix+'zImage', header.kernel_size)
