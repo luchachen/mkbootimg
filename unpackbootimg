@@ -258,43 +258,44 @@ def write_data(args, header, off):
 
     fn = fix_ramdisk_extension(file_prefix+'ramdisk')
 
-    _ramdisk = os.path.join(os.path.dirname(fn), 'ramdisk')
-    if not exists(_ramdisk):
-        makedirs(_ramdisk)
-    _fd = open(fn, 'rb')
+    if fn:
+        _ramdisk = os.path.join(os.path.dirname(fn), 'ramdisk')
+        if not exists(_ramdisk):
+            makedirs(_ramdisk)
+        _fd = open(fn, 'rb')
 
-    if __LIBARCHIVE__:
-        _fd_cpio = open(file_prefix+'cpio.json', 'wb')
-        with fd_reader(_fd.fileno()) as _archives:
-            _dict = {}
-            _fd_cpio.write('   {0:32s}    {1:11s} {2:4s}   {3:4s}   {4:4s}   {5:s}\n'.format(
-                              'pathname', 'mode', 'mtime', 'major', 'minor', 'linkpath'))
+        if __LIBARCHIVE__:
+            _fd_cpio = open(file_prefix+'cpio.json', 'wb')
+            with fd_reader(_fd.fileno()) as _archives:
+                _dict = {}
+                _fd_cpio.write('   {0:32s}    {1:11s} {2:4s}   {3:4s}   {4:4s}   {5:s}\n'.format(
+                                  'pathname', 'mode', 'mtime', 'major', 'minor', 'linkpath'))
 
-            for entry in _archives:
-                _dict['{0:32s}'.format(entry.pathname)] = '{0:s}  0x{1:04x}  0x{2:04x}  0x{3:04x}  {4:s}'.format(
-                   entry.strmode, entry.mtime, entry.rdevmajor, entry.rdevminor, entry.linkpath)
-            json.dump(_dict, _fd_cpio, indent=2)
-        _fd_cpio.close()
-        _curdir = os.getcwd()
+                for entry in _archives:
+                    _dict['{0:32s}'.format(entry.pathname)] = '{0:s}  0x{1:04x}  0x{2:04x}  0x{3:04x}  {4:s}'.format(
+                       entry.strmode, entry.mtime, entry.rdevmajor, entry.rdevminor, entry.linkpath)
+                json.dump(_dict, _fd_cpio, indent=2)
+            _fd_cpio.close()
+            _curdir = os.getcwd()
 
-        _fd.seek(0)
-        os.chdir(_ramdisk)
+            _fd.seek(0)
+            os.chdir(_ramdisk)
 
-        extract_fd(_fd.fileno(), EXTRACT_FFLAGS | EXTRACT_XATTR
-                | EXTRACT_MAC_METADATA | EXTRACT_TIME | EXTRACT_PERM | EXTRACT_ACL)
-        os.chdir(_curdir)
-        _fd.close()
-    else:
-        _curdir = os.getcwd()
+            extract_fd(_fd.fileno(), EXTRACT_FFLAGS | EXTRACT_XATTR
+                    | EXTRACT_MAC_METADATA | EXTRACT_TIME | EXTRACT_PERM | EXTRACT_ACL)
+            os.chdir(_curdir)
+            _fd.close()
+        else:
+            _curdir = os.getcwd()
 
-        p1 = Popen(["zcat", fn], stdout=PIPE)
-        os.chdir(_ramdisk)
+            p1 = Popen(["zcat", fn], stdout=PIPE)
+            os.chdir(_ramdisk)
 
-        p2 = Popen(["cpio", "-i", '--preserve-modification-time'], stdin=p1.stdout, stdout=PIPE)
-        output = p2.communicate()[0]
-        #print(output)
-        os.chdir(_curdir)
-        _fd.close()
+            p2 = Popen(["cpio", "-i", '--preserve-modification-time'], stdin=p1.stdout, stdout=PIPE)
+            output = p2.communicate()[0]
+            #print(output)
+            os.chdir(_curdir)
+            _fd.close()
 
     if header.kernel_size >= 2:
         if is_gzip_package(file_prefix+'zImage'):
