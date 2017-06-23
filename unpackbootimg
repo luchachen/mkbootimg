@@ -21,6 +21,9 @@ from os.path import basename, exists
 from struct import unpack, calcsize
 import zlib
 import os, json, binascii
+from libarchive.extract import *
+from libarchive.read import *
+from libarchive.entry import *
 
 def ROUNDDOWN(number, alignment):
     return ((number) & ~((alignment)-1))
@@ -247,6 +250,31 @@ def write_data(args, header, off):
     write_input_to_file(args, file_prefix+'dt', header.dt_size)
 
     fn = fix_ramdisk_extension(file_prefix+'ramdisk')
+
+    _ramdisk = os.path.join(os.path.dirname(fn), 'ramdisk')
+    if not exists(_ramdisk):
+        makedirs(_ramdisk)
+    _fd = open(fn, 'rb')
+    _fd_cpio = open(file_prefix+'cpio.json', 'wb')
+    with fd_reader(_fd.fileno()) as _archives:
+        _dict = {}
+        _fd_cpio.write('   {0:32s}    {1:11s} {2:4s}   {3:4s}   {4:4s}   {5:s}\n'.format(
+                          'pathname', 'mode', 'mtime', 'major', 'minor', 'linkpath'))
+
+        for entry in _archives:
+            _dict['{0:32s}'.format(entry.pathname)] = '{0:s}  0x{1:04x}  0x{2:04x}  0x{3:04x}  {4:s}'.format(
+               entry.strmode, entry.mtime, entry.rdevmajor, entry.rdevminor, entry.linkpath)
+        json.dump(_dict, _fd_cpio, indent=2)
+    _fd_cpio.close()
+    _curdir = os.getcwd()
+
+    _fd.seek(0)
+    os.chdir(_ramdisk)
+
+    extract_fd(_fd.fileno(), EXTRACT_FFLAGS | EXTRACT_XATTR
+            | EXTRACT_MAC_METADATA | EXTRACT_TIME | EXTRACT_PERM | EXTRACT_ACL)
+    os.chdir(_curdir)
+    _fd.close()
 
     if header.kernel_size >= 2:
         if is_gzip_package(file_prefix+'zImage'):
