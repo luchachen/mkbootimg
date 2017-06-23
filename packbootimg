@@ -16,6 +16,7 @@
 from __future__ import print_function
 from sys import argv, exit, stderr
 from argparse import ArgumentParser, FileType, Action
+import os
 from os import fstat
 from os.path import basename, dirname,join
 from struct import pack
@@ -24,6 +25,7 @@ import sys
 import re
 import json
 import glob
+from subprocess import *
 
 def filesize(f):
     if f is None:
@@ -131,7 +133,7 @@ def parse_os_patch_level(x):
     return 0
 
 class JSONAction(Action):
-    """An argparse action that concatenates "-i" "PartName filepath" """
+    """An argparse action that concatenates "-i" "INPUT" """
 
     def __call__(self, parser, namespace, value, name):
         setattr(namespace, self.dest, value)
@@ -155,6 +157,36 @@ class JSONAction(Action):
             if v is not None:
                 setattr(namespace, k, v)
 
+
+class RAMDISKAction(Action):
+    """An argparse action that concatenates "--ramdisk" "ramdisk" """
+
+    def __call__(self, parser, namespace, value, name):
+        _fd = None
+        if os.path.isdir(value):
+            _curdir = os.getcwd()
+
+            _fn = os.path.split(value)[0]
+            _fd = open(_fn+'.gz', 'wb')
+            os.chdir(value)
+            p1 = Popen(["find"], stdout=PIPE)
+            p2 = Popen(["sort"], stdin=p1.stdout, stdout=PIPE)
+            p3 = Popen(["cpio", '--quiet', '-o', '-H', 'crc', '--owner=root:root'], stdin=p2.stdout, stdout=PIPE)
+            p4 = Popen(["gzip"], stdin=p3.stdout, stdout= _fd)
+            output = p4.communicate()[0]
+
+            os.chdir(_curdir)
+            _fd.flush()
+
+            """unset gzip timestamp, gzip head 4->8"""
+            _fd.seek(4)
+            _fd.write(pack('4x'))
+            """unset timestamp end"""
+
+            _fd.close()
+            _fd = open(_fn+'.gz', 'rb')
+            setattr(namespace, self.dest, _fd)
+
 def parse_cmdline():
     parser = ArgumentParser()
 
@@ -162,7 +194,7 @@ def parse_cmdline():
                         required=True)
     parser.add_argument('--kernel', help='path to the kernel', type=FileType('rb'),
                         required=False)
-    parser.add_argument('--ramdisk', help='path to the ramdisk', type=FileType('rb'))
+    parser.add_argument('--ramdisk', help='path to the ramdisk', action=RAMDISKAction)
     parser.add_argument('--second', help='path to the 2nd bootloader', type=FileType('rb'))
     parser.add_argument('--cmdline', help='extra arguments to be passed on the '
                         'kernel command line', default='', action=ValidateStrLenAction, maxlen=1536)
