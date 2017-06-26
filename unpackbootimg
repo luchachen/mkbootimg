@@ -29,7 +29,7 @@ if __LIBARCHIVE__:
     from libarchive.read import *
     from libarchive.entry import *
 else:
-    from subprocess import *
+    from patoolib import extract_archive
 
 
 def ROUNDDOWN(number, alignment):
@@ -262,9 +262,8 @@ def write_data(args, header, off):
         _ramdisk = os.path.join(os.path.dirname(fn), 'ramdisk')
         if not exists(_ramdisk):
             makedirs(_ramdisk)
-        _fd = open(fn, 'rb')
-
         if __LIBARCHIVE__:
+            _fd = open(fn, 'rb')
             _fd_cpio = open(file_prefix+'cpio.json', 'wb')
             with fd_reader(_fd.fileno()) as _archives:
                 _dict = {}
@@ -286,16 +285,15 @@ def write_data(args, header, off):
             os.chdir(_curdir)
             _fd.close()
         else:
-            _curdir = os.getcwd()
+            efn = extract_archive(fn, verbosity=0)
+            _efn = os.path.join(os.path.dirname(fn), efn)
+            os.rename(efn, _efn)
+            _myramdisk=extract_archive(_efn, verbosity=0) 
+            try:
+                os.rename(_myramdisk, _ramdisk)
+            except OSError as msg:
+                raise OSError("%s: %s is not empty, reserve ramdisk to %s" %(msg, _ramdisk, _myramdisk))
 
-            p1 = Popen(["zcat", fn], stdout=PIPE)
-            os.chdir(_ramdisk)
-
-            p2 = Popen(["cpio", "-i", '--preserve-modification-time'], stdin=p1.stdout, stdout=PIPE)
-            output = p2.communicate()[0]
-            #print(output)
-            os.chdir(_curdir)
-            _fd.close()
 
     if header.kernel_size >= 2:
         if is_gzip_package(file_prefix+'zImage'):
