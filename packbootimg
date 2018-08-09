@@ -139,6 +139,12 @@ class JSONAction(Action):
         setattr(namespace, self.dest, value)
         try:
             _dict = json.load(value)
+
+            print('json %s:' % value.name)
+            print(json.dumps(_dict, indent = 4))
+            for k, v in _dict.items():
+                if v is not None:
+                    setattr(namespace, k, v)
             (_prefix, _ext) = basename(value.name).split('-')
             _prefix = join(dirname(value.name),_prefix)
             mfns = glob.glob(_prefix+'-zImage*')
@@ -151,11 +157,12 @@ class JSONAction(Action):
             setattr(namespace, 'ramdisk', open(mfns[0]))
             setattr(namespace, 'second', open(_prefix+'-second'))
             setattr(namespace, 'dt', open(_prefix+'-dt'))
+            setattr(namespace, 'os_patch_level', parse_os_patch_level(_dict.get('os_patch_level')))
+            setattr(namespace, 'os_version', parse_os_version(_dict.get('os_version')))
+
         except (IOError, ValueError):
             _dict = {}
-        for k, v in _dict.items():
-            if v is not None:
-                setattr(namespace, k, v)
+        print('%s' % namespace)
 
 
 class RAMDISKAction(Action):
@@ -229,6 +236,7 @@ def write_data(args):
 
 def main():
     args = parse_cmdline()
+    print('%s ' % args)
     img_id = write_header(args)
     write_data(args)
     if args.id:
