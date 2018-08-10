@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<codesign>
+    <project name="Mickey6TTFEVDO" servip="10.128.180.220" servport="18918">
+        <sbl1 path="../../../../../nonhlos/BOOT.BF.3.3/boot_images/build/ms/bin/FAASANAZ/sbl1.mbn" />
+        <firehose path="../../../../../nonhlos/firehose/build/ms/bin/FAADANAZ/prog_emmc_firehose_8937_ddr.mbn" />
+        <tz path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/tz.mbn" />
+        <emmc_appsboot path="../../../../../out/target/product/Mickey6TTFEVDO/emmc_appsboot.mbn" />
+        <adsp path="../../../../../nonhlos/ADSP.8953.2.8.4/adsp_proc/obj/8937/signed/adsp.mbn" />
+        <mba path="../../../../../nonhlos/MPSS.TA.2.3/modem_proc/build/ms/bin/8940.gen.prod/mba.mbn" />
+        <qdsp6sw path="../../../../../nonhlos/MPSS.TA.2.3/modem_proc/build/ms/bin/8940.gen.prod/qdsp6sw.mbn" />
+        <rpm path="../../../../../nonhlos/RPM.BF.2.2/rpm_proc/build/ms/bin/8937/rpm.mbn" />
+        <wcnss path="../../../../../nonhlos/CNSS.PR.4.0/wcnss_proc/build/ms/bin/8940/reloc/wcnss.mbn" />
+        <venus path="../../../../../nonhlos/VIDEO.VE_ULT.3.1/venus_proc/build/bsp/asic/build/PROD/mbn/reloc/signed/venus.mbn" />
+        <devcfg path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/devcfg.mbn" />
+        <smplap32 path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/smplap32.mbn" />
+        <smplap64 path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/smplap64.mbn" />
+        <isdbtmm path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/isdbtmm.mbn" />
+        <widevine path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/widevine.mbn" />
+        <cmnlib path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/cmnlib_30.mbn" />
+        <cmnlib64 path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/cmnlib64_30.mbn" />           
+        <keymaster path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/keymaster64.mbn" />
+        <mdtp path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/mdtp.mbn" />
+        <fingerprint path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/fingerprint.mbn" />
+        <fingerprint64 path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/fingerprint64.mbn" />
+        <dhsecapp path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/dhsecapp.mbn" />
+        <qmpsecap path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/qmpsecap.mbn" />
+		<cppf path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/cppf.mbn" />
+        <gptest path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/gptest.mbn" />
+        <securemm path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/securemm.mbn" />
+        <sw_fp path="../../../../../nonhlos/TZ.BF.4.0.5/trustzone_images/build/ms/bin/ZALAANAA/sw_fp.mbn" />
+        <!-- 
+        <boot path="../../../../../out/target/product/Mickey6TTFEVDO/boot.img" />
+		<recovery path="../../../../../out/target/product/Mickey6TTFEVDO/recovery.img" />
+		<tar path="../../../../../out/target/common/jrdResAssetsCust/tar2img/Mickey6TTFEVDO.tar.gz" />
+        -->
+        <mcfg_sw path="../../../../../nonhlos/MPSS.TA.2.3/modem_proc/build/ms/bin/8940.gen.prod/mcfg_sw.mbn" />
+        <mcfg_hw path="../../../../../nonhlos/MPSS.TA.2.3/modem_proc/build/ms/bin/8940.gen.prod/mcfg_hw.mbn" />
+    </project>
+</codesign>
+
