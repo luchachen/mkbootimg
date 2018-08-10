@@ -1,0 +1,1 @@
+ (find . -type d | sed 's,$,/,'; find . \! -type d) | cut -c 3- | sort | sed 's,^,,' |`gettop`/out/host/linux-x86/bin/fs_config -D ../system/ -S ../obj/ETC/file_contexts.bin_intermediates/file_contexts.bin   > ../boot_filesystem_config.txt

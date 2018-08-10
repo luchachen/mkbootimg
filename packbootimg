@@ -176,23 +176,21 @@ class RAMDISKAction(Action):
     def __call__(self, parser, namespace, value, name):
         _fd = None
         if os.path.isdir(value):
-            _curdir = os.getcwd()
+            #_curdir = os.getcwd()
 
             _fn = os.path.split(value)[0]
             _fd = open(_fn+'.gz', 'wb')
-            os.chdir(value)
-            p1 = Popen(["find"], stdout=PIPE)
-            p2 = Popen(["sort"], stdin=p1.stdout, stdout=PIPE)
-            p3 = Popen(["cpio", '--quiet', '-o', '-H', 'newc', '--owner=root:root'], stdin=p2.stdout, stdout=PIPE)
-            p4 = Popen(["gzip"], stdin=p3.stdout, stdout= _fd)
-            output = p4.communicate()[0]
+            #os.chdir(value)
+            p1 = Popen([join(getscript(), "mkbootfs"), "-f", join(getscript(), "etc/boot_filesystem_config.txt"), _fn], stdout=PIPE)
+            p2 = Popen([join(getscript(), "minigzip")], stdin=p1.stdout, stdout=_fd)
+            output = p2.communicate()[0]
 
-            os.chdir(_curdir)
+            #os.chdir(_curdir)
             _fd.flush()
 
             """unset gzip timestamp, gzip head 4->8"""
-            _fd.seek(4)
-            _fd.write(pack('4x'))
+            #_fd.seek(4)
+            #_fd.write(pack('4x'))
             """unset timestamp end"""
 
             _fd.close()
