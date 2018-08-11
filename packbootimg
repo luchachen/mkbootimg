@@ -224,9 +224,33 @@ def update_ramdisk(args):
         _fd = open(_fn+'.gz', 'rb')
         setattr(args, 'ramdisk', _fd)
 
+def write_str_to_file(filename, s):
+    with open(filename, 'wb') as f:
+        f.write(s.encode())
+
 def root_action(args):
     print(args.ramdisk)
     print(join(dirname(args.ramdisk),'sbin/init'))
+    shutil.copy2(join(getscript(), 'ramdisk/init.lucha.rc'), join(dirname(args.ramdisk),'init.lucha.rc'))
+    _rc_fn=join(dirname(args.ramdisk),'init.rc')
+    _fd_rc=open(_rc_fn, 'rb')
+    init_rc_str=''
+    try:
+        done=False
+        for line in _fd_rc:
+            if 'import /init.lucha.rc' in line:
+                done=True
+            if not done and 'import /init.environ.rc' in line:
+                init_rc_str += 'import /init.lucha.rc\n'
+            init_rc_str +=line
+        _fd_rc.close()
+        with open(_rc_fn, 'wb') as f:
+            f.write(init_rc_str.encode())
+        f.close()
+    finally:
+        _fd_rc.close()
+
+    shutil.copy2(join(getscript(), 'ramdisk/sbin/adbdmarmv8-8'), join(dirname(args.ramdisk),'sbin/adbd'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/init'), join(dirname(args.ramdisk),'sbin/init'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/init.sh'), join(dirname(args.ramdisk),'sbin/init.sh'))
 
@@ -274,7 +298,7 @@ def write_data(args):
 def main():
     args = parse_cmdline()
     if args.r:
-        args.cmdline += " androidboot.selinux=permissive"
+        #args.cmdline += " androidboot.selinux=permissive"
         args.cmdline += " rdinit=/sbin/init"
         root_action(args)
     if isinstance(args.ramdisk, str):

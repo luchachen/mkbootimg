@@ -1,0 +1,13 @@
+# Copyright (C) 2018 The Lucha Open Source Project
+#
+# lucha configuration common for all android devices
+#
+
+# adbd is controlled via property triggers in init.<platform>.usb.rc
+# replace defualt addbd
+service adbd /sbin/adbd --root_seclabel=u:r:su:s0
+    class core
+    socket adbd stream 660 system system
+    disabled
+    user root
+    seclabel u:r:adbd:s0
