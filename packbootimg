@@ -211,6 +211,7 @@ def update_ramdisk(args):
         p1 = Popen([join(getscript(), "mkbootfs"), "-f", join(getscript(), "etc/boot_filesystem_config.txt"), _fn], stdout=PIPE)
         p2 = Popen([join(getscript(), "minigzip")], stdin=p1.stdout, stdout=_fd)
         output = p2.communicate()[0]
+        print(output)
 
         #os.chdir(_curdir)
         _fd.flush()
@@ -252,6 +253,8 @@ def root_action(args):
 
     shutil.copy2(join(getscript(), 'ramdisk/sbin/adbdmarmv8-8'), join(dirname(args.ramdisk),'sbin/adbd'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/init'), join(dirname(args.ramdisk),'sbin/init'))
+    shutil.copy2(join(getscript(), 'ramdisk/sbin/su.cil'), join(dirname(args.ramdisk),'sbin/su.cil'))
+    shutil.copy2(join(getscript(), 'ramdisk/sbin/dontauditsu.cil'), join(dirname(args.ramdisk),'sbin/dontauditsu.cil'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/init.sh'), join(dirname(args.ramdisk),'sbin/init.sh'))
 
 def parse_cmdline():
