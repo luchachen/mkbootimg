@@ -263,6 +263,7 @@ def root_action(args):
     if is_arm64(join(dirname(args.ramdisk), 'init')):
         suffix='marmv8-8'
     if args.sign == '':
+        pass
         shutil.copy2(join(getscript(), 'security', 'verity_key'), join(dirname(args.ramdisk),'verity_key'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/adbd%s' %(suffix)), join(dirname(args.ramdisk),'sbin/adbd'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/init%s' %(suffix)), join(dirname(args.ramdisk),'sbin/init'))
@@ -323,7 +324,7 @@ def main():
         args.cmdline += " printk.disable_uart=0"
         args.cmdline += " rdinit=/sbin/init"
         if args.disable_verity or args.sign == '':
-            args.cmdline += " androidboot.verifiedbootstate=orange"
+            args.cmdline += " androidboot.verify=disable"
         args.cmdline += " -- "
         root_action(args)
     if isinstance(args.ramdisk, str):
