@@ -280,8 +280,8 @@ def parse_cmdline():
                         required=True)
     parser.add_argument('--kernel', help='path to the kernel', type=FileType('rb'),
                         required=False)
-    parser.add_argument('-r', help='root Android',
-                        action='store_true')
+    parser.add_argument('-l', '--level',  help='Root Android Level, only re-pack, only adbd permissive, full permissive', type=parse_int,
+                                   choices=[i for i in range(0,3)], default=0)
     parser.add_argument('--ramdisk', help='path to the dir ramdisk', type=str)
     parser.add_argument('--second', help='path to the 2nd bootloader', type=FileType('rb'))
     parser.add_argument('--cmdline', help='extra arguments to be passed on the '
@@ -316,8 +316,9 @@ def write_data(args):
 
 def main():
     args = parse_cmdline()
-    if args.r:
-        #args.cmdline += " androidboot.selinux=permissive"
+    if args.level:
+        if args.level == 2:
+            args.cmdline += " androidboot.selinux=permissive"
         args.cmdline += " printk.disable_uart=0"
         args.cmdline += " rdinit=/sbin/init"
         root_action(args)
