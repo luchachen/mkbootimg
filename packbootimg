@@ -267,6 +267,8 @@ def root_action(args):
     suffix='marmv7-8'
     if is_arm64(join(dirname(args.ramdisk), 'init')):
         suffix='marmv8-8'
+    if args.sign == '':
+        shutil.copy2(join(getscript(), 'security', 'verity_key'), join(dirname(args.ramdisk),'verity_key'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/adbd%s' %(suffix)), join(dirname(args.ramdisk),'sbin/adbd'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/init%s' %(suffix)), join(dirname(args.ramdisk),'sbin/init'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/su.cil'), join(dirname(args.ramdisk),'sbin/su.cil'))
@@ -278,11 +280,15 @@ def parse_cmdline():
 
     parser.add_argument('-i', '--input', help='input bootimg.json file name', type=FileType('rb'), action=JSONAction,
                         required=True)
+    parser.add_argument('-l', '--level',  help='Root Android Level, 0: only re-pack, 1: only adbd permissive,  2: full permissive', type=parse_int,
+                                   choices=[i for i in range(0,3)], default=0)
+    parser.add_argument('-s', '--sign',  help='signing boot image type, default will disable dm-verity, such as Petito or U50APLUSTMO', type=str,
+                                   default='')
+    parser.add_argument('-d', '--disable_verity',  help='disable dm-verity checking when verity system/vendor verity table signature fail',
+                                   action='store_true')
+    parser.add_argument('--ramdisk', help='path to the dir ramdisk', type=str)
     parser.add_argument('--kernel', help='path to the kernel', type=FileType('rb'),
                         required=False)
-    parser.add_argument('-l', '--level',  help='Root Android Level, only re-pack, only adbd permissive, full permissive', type=parse_int,
-                                   choices=[i for i in range(0,3)], default=0)
-    parser.add_argument('--ramdisk', help='path to the dir ramdisk', type=str)
     parser.add_argument('--second', help='path to the 2nd bootloader', type=FileType('rb'))
     parser.add_argument('--cmdline', help='extra arguments to be passed on the '
                         'kernel command line', default='', action=ValidateStrLenAction, maxlen=1536)
@@ -321,6 +327,9 @@ def main():
             args.cmdline += " androidboot.selinux=permissive"
         args.cmdline += " printk.disable_uart=0"
         args.cmdline += " rdinit=/sbin/init"
+        if args.disable_verity or args.sign == '':
+            args.cmdline += " androidboot.verifiedbootstate=orange"
+        args.cmdline += " -- "
         root_action(args)
     if isinstance(args.ramdisk, str):
         update_ramdisk(args)
@@ -329,7 +338,12 @@ def main():
     write_data(args)
     args.output.flush()
     args.output.close()
-    retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), 'U50APLUSTMO', '0', 'boot', os.path.abspath(args.output.name)])
+    #qcom 
+    if args.sign == '':
+        retcode = call([join(getscript(), 'boot_signer'), '/boot', os.path.abspath(args.output.name), \
+            join(getscript(), 'security', 'verity.pk8'), join(getscript(), 'security', 'verity.x509.pem'), os.path.abspath(args.output.name)])
+    else:
+        retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), args.sign, '0', 'boot', os.path.abspath(args.output.name)])
     #retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), 'Pepito', '0', 'boot', os.path.abspath(args.output.name)])
     if args.id:
         if isinstance(img_id, str):
