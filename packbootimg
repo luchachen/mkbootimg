@@ -169,7 +169,7 @@ class JSONAction(Action):
 
         except (IOError, ValueError):
             _dict = {}
-        pprint.pprint(namespace.__dict__, indent =4)
+        #pprint.pprint(namespace.__dict__, indent =4)
 
 
 class RAMDISKAction(Action):
@@ -180,7 +180,6 @@ class RAMDISKAction(Action):
         if os.path.isdir(value):
             #_curdir = os.getcwd()
 
-            print(value)
             _fn = os.path.split(value)[0]
             _fd = open(_fn+'.gz', 'wb')
             #os.chdir(value)
@@ -206,14 +205,12 @@ def update_ramdisk(args):
     if os.path.isdir(value):
         #_curdir = os.getcwd()
 
-        print(value)
         _fn = os.path.split(value)[0]
         _fd = open(_fn+'.gz', 'wb')
         #os.chdir(value)
         p1 = Popen([join(getscript(), "mkbootfs"), "-f", join(getscript(), "etc/boot_filesystem_config.txt"), _fn], stdout=PIPE)
         p2 = Popen([join(getscript(), "minigzip")], stdin=p1.stdout, stdout=_fd)
         output = p2.communicate()[0]
-        print(output)
 
         #os.chdir(_curdir)
         _fd.flush()
@@ -244,8 +241,6 @@ def is_arm64(filename):
     return data[0]==ARMV8MAGIC
 
 def root_action(args):
-    print(args.ramdisk)
-    print(join(dirname(args.ramdisk),'sbin/init'))
     shutil.copy2(join(getscript(), 'ramdisk/init.lucha.rc'), join(dirname(args.ramdisk),'init.lucha.rc'))
     _rc_fn=join(dirname(args.ramdisk),'init.rc')
     _fd_rc=open(_rc_fn, 'rb')
