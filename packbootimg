@@ -19,7 +19,7 @@ from argparse import ArgumentParser, FileType, Action
 import os
 from os import fstat
 from os.path import basename, dirname,join
-from struct import pack
+from struct import pack,unpack, calcsize
 from hashlib import sha1
 import sys
 import re
@@ -28,6 +28,8 @@ import glob
 from subprocess import *
 import shutil
 import pprint
+
+ARMV8MAGIC='\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00\x01\x00\x00\x00'
 
 def getscript():
     return os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
@@ -229,6 +231,18 @@ def write_str_to_file(filename, s):
     with open(filename, 'wb') as f:
         f.write(s.encode())
 
+def is_arm64(filename):
+    data = None
+    with open(filename, 'rb') as f:
+        fmt = '24s'
+        size = calcsize(fmt)
+        buf = f.read(size)
+        if(len(buf))!=size:
+            return False
+        data = unpack(fmt, buf)
+
+    return data[0]==ARMV8MAGIC
+
 def root_action(args):
     print(args.ramdisk)
     print(join(dirname(args.ramdisk),'sbin/init'))
@@ -250,9 +264,11 @@ def root_action(args):
         f.close()
     finally:
         _fd_rc.close()
-
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/adbdmarmv8-8'), join(dirname(args.ramdisk),'sbin/adbd'))
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/init'), join(dirname(args.ramdisk),'sbin/init'))
+    suffix='marmv7-8'
+    if is_arm64(join(dirname(args.ramdisk), 'init')):
+        suffix='marmv8-8'
+    shutil.copy2(join(getscript(), 'ramdisk/sbin/adbd%s' %(suffix)), join(dirname(args.ramdisk),'sbin/adbd'))
+    shutil.copy2(join(getscript(), 'ramdisk/sbin/init%s' %(suffix)), join(dirname(args.ramdisk),'sbin/init'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/su.cil'), join(dirname(args.ramdisk),'sbin/su.cil'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/dontauditsu.cil'), join(dirname(args.ramdisk),'sbin/dontauditsu.cil'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/init.sh'), join(dirname(args.ramdisk),'sbin/init.sh'))
@@ -302,6 +318,7 @@ def main():
     args = parse_cmdline()
     if args.r:
         #args.cmdline += " androidboot.selinux=permissive"
+        args.cmdline += " printk.disable_uart=0"
         args.cmdline += " rdinit=/sbin/init"
         root_action(args)
     if isinstance(args.ramdisk, str):
@@ -311,7 +328,8 @@ def main():
     write_data(args)
     args.output.flush()
     args.output.close()
-    retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), 'Pepito', '0', 'boot', os.path.abspath(args.output.name)])
+    retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), 'U50APLUSTMO', '0', 'boot', os.path.abspath(args.output.name)])
+    #retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), 'Pepito', '0', 'boot', os.path.abspath(args.output.name)])
     if args.id:
         if isinstance(img_id, str):
             # Python 2's struct.pack returns a string, but py3 returns bytes.
