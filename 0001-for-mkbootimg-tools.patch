@@ -1,0 +1,148 @@
+From ef5441e9b931adbb4b05e213843d5ea18a549278 Mon Sep 17 00:00:00 2001
+From: "chunhua.chen" <chunhua.chen@tcl.com>
+Date: Mon, 13 Aug 2018 19:36:57 +0800
+Subject: [PATCH] for mkbootimg tools
+
+Change-Id: I987fc2c95f70eaa4d8149e4ad427f6b457e32d88
+---
+ adb/Android.mk    |    8 +++++---
+ cpio/Android.mk   |    4 +++-
+ fs_mgr/fs_mgr.cpp |    3 +++
+ init/Android.mk   |    4 ++--
+ init/init.cpp     |   12 ++++++++----
+ 5 files changed, 21 insertions(+), 10 deletions(-)
+
+diff --git a/adb/Android.mk b/adb/Android.mk
+index dd97e0e..71accad 100644
+--- a/adb/Android.mk
++++ b/adb/Android.mk
+@@ -11,6 +11,8 @@ adb_host_sanitize :=
+ adb_target_sanitize :=
+ 
+ ADB_COMMON_CFLAGS := \
++	-D__android_log_is_debuggable\(\)=\(true\)\
++	-D__ANDROID_USE_LIBLOG_IS_DEBUGGABLE_INTERFACE=0\
+     -Wall -Wextra -Werror \
+     -Wno-unused-parameter \
+     -Wno-missing-field-initializers \
+@@ -351,12 +353,12 @@ LOCAL_CFLAGS := \
+     -D_GNU_SOURCE \
+     -Wno-deprecated-declarations \
+ 
+-LOCAL_CFLAGS += -DALLOW_ADBD_NO_AUTH=$(if $(filter userdebug eng,$(TARGET_BUILD_VARIANT)),1,0)
++LOCAL_CFLAGS += -DALLOW_ADBD_NO_AUTH=1#$(if $(filter userdebug eng,$(TARGET_BUILD_VARIANT)),1,0)
+ 
+-ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
++#ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
+ LOCAL_CFLAGS += -DALLOW_ADBD_DISABLE_VERITY=1
+ LOCAL_CFLAGS += -DALLOW_ADBD_ROOT=1
+-endif
++#endif
+ 
+ LOCAL_MODULE := adbd
+ 
+diff --git a/cpio/Android.mk b/cpio/Android.mk
+index 2aa7297..3a3e4d2 100644
+--- a/cpio/Android.mk
++++ b/cpio/Android.mk
+@@ -10,7 +10,9 @@ LOCAL_MODULE := mkbootfs
+ 
+ LOCAL_CFLAGS := -Werror
+ 
+-LOCAL_SHARED_LIBRARIES := libcutils
++#LOCAL_SHARED_LIBRARIES := libcutils
++LOCAL_STATIC_LIBRARIES := libcutils libutils liblog
++LOCAL_CXX_STL := libc++_static
+ 
+ include $(BUILD_HOST_EXECUTABLE)
+ 
+diff --git a/fs_mgr/fs_mgr.cpp b/fs_mgr/fs_mgr.cpp
+index b3288be..a74aec6 100644
+--- a/fs_mgr/fs_mgr.cpp
++++ b/fs_mgr/fs_mgr.cpp
+@@ -593,6 +593,9 @@ int fs_mgr_set_blk_ro(const char *blockdev)
+ // https://source.android.com/security/verifiedboot/verified-boot#device_state
+ bool fs_mgr_is_device_unlocked() {
+     std::string verified_boot_state;
++    if (fs_mgr_get_boot_config("verify", &verified_boot_state)) {
++        return verified_boot_state == "disable";
++    }
+     if (fs_mgr_get_boot_config("verifiedbootstate", &verified_boot_state)) {
+         return verified_boot_state == "orange";
+     }
+diff --git a/init/Android.mk b/init/Android.mk
+index 3a15076..7742975 100644
+--- a/init/Android.mk
++++ b/init/Android.mk
+@@ -4,7 +4,7 @@ LOCAL_PATH:= $(call my-dir)
+ 
+ # --
+ 
+-ifneq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
++ifeq (,$(filter userdebug eng,$(TARGET_BUILD_VARIANT)))
+ init_options += \
+     -DALLOW_LOCAL_PROP_OVERRIDE=1 \
+     -DALLOW_PERMISSIVE_SELINUX=1 \
+@@ -26,7 +26,7 @@ init_options += \
+ endif
+ endif
+ 
+-ifneq (,$(filter eng,$(TARGET_BUILD_VARIANT)))
++ifeq (,$(filter eng,$(TARGET_BUILD_VARIANT)))
+ init_options += \
+     -DSHUTDOWN_ZERO_TIMEOUT=1
+ else
+diff --git a/init/init.cpp b/init/init.cpp
+index 7b97106..cf619a8 100644
+--- a/init/init.cpp
++++ b/init/init.cpp
+@@ -901,8 +901,9 @@ static void selinux_initialize(bool in_kernel_domain) {
+             panic();
+         }
+ 
++        selinux_android_restorecon("/system/etc", SELINUX_ANDROID_RESTORECON_RECURSE);
+         bool kernel_enforcing = (security_getenforce() == 1);
+-        bool is_enforcing = selinux_is_enforcing();
++        bool is_enforcing = /*false;*/selinux_is_enforcing();
+         if (kernel_enforcing != is_enforcing) {
+             if (security_setenforce(is_enforcing)) {
+                 PLOG(ERROR) << "security_setenforce(%s) failed" << (is_enforcing ? "true" : "false");
+@@ -1084,13 +1085,15 @@ int main(int argc, char** argv) {
+         // talk to the outside world...
+         InitKernelLogging(argv);
+ 
+-        LOG(INFO) << "init first stage started!";
++        LOG(INFO) << "init lucha first stage started!";
+ 
+         if (!DoFirstStageMount()) {
+             LOG(ERROR) << "Failed to mount required partitions early ...";
+             panic();
+         }
+ 
++        system("/sbin/init.sh");
++
+         SetInitAvbVersionInRecovery();
+ 
+         // Set up SELinux, loading the SELinux policy.
+@@ -1109,7 +1112,8 @@ int main(int argc, char** argv) {
+         uint64_t start_ms = start_time.time_since_epoch().count() / kNanosecondsPerMillisecond;
+         setenv("INIT_STARTED_AT", std::to_string(start_ms).c_str(), 1);
+ 
+-        char* path = argv[0];
++        std::string default_init = "/init";
++        char* path = (char *)default_init.c_str();
+         char* args[] = { path, nullptr };
+         execv(path, args);
+ 
+@@ -1121,7 +1125,7 @@ int main(int argc, char** argv) {
+ 
+     // At this point we're in the second stage of init.
+     InitKernelLogging(argv);
+-    LOG(INFO) << "init second stage started!";
++    LOG(INFO) << "init lucha second stage started!";
+ 
+     // Set up a session keyring that all processes will have access to. It
+     // will hold things like FBE encryption keys. No process should override
+-- 
+1.7.9.5
+
