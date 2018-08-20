@@ -143,17 +143,25 @@ class JSONAction(Action):
     """An argparse action that concatenates "-i" "INPUT" """
 
     def __call__(self, parser, namespace, value, name):
+        if os.path.isdir(value):
+            js = glob.glob(join(value, '*-bootimg.json'))
+            if len(js) > 1:
+                print('error: too many files %s' % js)
+                print('you can use definite filename')
+                sys.exit(1)
+            value = js[0]
         setattr(namespace, self.dest, value)
         try:
-            _dict = json.load(value)
+            with open(value, 'rb') as f_in:
+                _dict = json.load(f_in)
 
-            print('json %s:' % value.name)
+            print('json %s:' % value)
             #pprint.pprint(_dict, indent = 4)
             for k, v in _dict.items():
                 if v is not None:
                     setattr(namespace, k, v)
-            (_prefix, _ext) = basename(value.name).split('-')
-            _prefix = join(dirname(value.name),_prefix)
+            (_prefix, _ext) = basename(value).split('-')
+            _prefix = join(dirname(value),_prefix)
             mfns = glob.glob(_prefix+'-zImage')
             if len(mfns) > 1:
                 print('warning: too many files %s' % mfns)
@@ -274,7 +282,7 @@ def root_action(args):
 def parse_cmdline():
     parser = ArgumentParser()
 
-    parser.add_argument('-i', '--input', help='input bootimg.json file name', type=FileType('rb'), action=JSONAction,
+    parser.add_argument('-i', '--input', help='input the dirpath/filename of bootimg.json', type=str, action=JSONAction,
                         required=True)
     parser.add_argument('-l', '--level',  help='Root Android Level, 0: only re-pack, 1: only adbd permissive,  2: full permissive', type=parse_int,
                                    choices=[i for i in range(0,3)], default=0)
