@@ -11,3 +11,10 @@ service adbd /sbin/adbd --root_seclabel=u:r:su:s0
     disabled
     user root
     seclabel u:r:adbd:s0
+
+service logcat2uart /system/bin/logcat  -b system -b main -b events -b crash -v printable -f /dev/kmsg -r 1024 -n 256 *:W
+    oneshot
+    disabled
+    user root
+    group log readproc root
+    writepid /dev/cpuset/system-background/tasks
