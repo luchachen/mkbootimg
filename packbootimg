@@ -333,6 +333,7 @@ def main():
         args.cmdline += " rdinit=/sbin/init"
         if args.disable_verity or args.sign == '':
             args.cmdline += " androidboot.verify=disable"
+            args.disable_verity = True
         args.cmdline += " -- "
         root_action(args)
     if isinstance(args.ramdisk, str):
