@@ -288,11 +288,7 @@ def write_data(args, header, off):
             efn = extract_archive(fn, verbosity=0)
             _efn = os.path.join(os.path.dirname(fn), efn)
             os.rename(efn, _efn)
-            _myramdisk=extract_archive(_efn, verbosity=0) 
-            try:
-                os.rename(_myramdisk, _ramdisk)
-            except OSError as msg:
-                raise OSError("%s: %s is not empty, reserve ramdisk to %s" %(msg, _ramdisk, _myramdisk))
+            extract_archive(_efn, verbosity=0, outdir=_ramdisk, interactive=True)
 
 
     if header.kernel_size >= 2:
