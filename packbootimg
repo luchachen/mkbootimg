@@ -278,7 +278,7 @@ def parse_cmdline():
                         required=True)
     parser.add_argument('-l', '--level',  help='Root Android Level, 0: only re-pack, 1: only adbd permissive,  2: full permissive', type=parse_int,
                                    choices=[i for i in range(0,3)], default=0)
-    parser.add_argument('-s', '--sign',  help='signing boot image type, default will disable dm-verity, such as Petito or U50APLUSTMO', type=str,
+    parser.add_argument('-s', '--sign',  help='signing boot image type, default will disable dm-verity, such as Petito or U50APLUSTMO or dirpath of verity_key', type=str,
                                    default='')
     parser.add_argument('-d', '--disable_verity',  help='disable dm-verity checking when verity system/vendor verity table signature fail',
                                    action='store_true')
@@ -338,6 +338,9 @@ def main():
     if args.sign == '':
         retcode = call([join(getscript(), 'boot_signer'), '/boot', os.path.abspath(args.output.name), \
             join(getscript(), 'security', 'verity.pk8'), join(getscript(), 'security', 'verity.x509.pem'), os.path.abspath(args.output.name)])
+    elif os.path.isdir(args.sign):
+        retcode = call([join(getscript(), 'boot_signer'), '/boot', os.path.abspath(args.output.name), \
+            join(args.sign, 'verity.pk8'), join(args.sign,'verity.x509.pem'), os.path.abspath(args.output.name)])
     else:
         retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), args.sign, '0', 'boot', os.path.abspath(args.output.name)])
     #retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), 'Pepito', '0', 'boot', os.path.abspath(args.output.name)])
