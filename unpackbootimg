@@ -20,7 +20,7 @@ from os import rename, makedirs
 from os.path import basename, exists
 from struct import unpack, calcsize
 import zlib
-import os, json, binascii
+import os, json, binascii, shutil
 
 
 __LIBARCHIVE__= False
@@ -329,6 +329,10 @@ def main():
     args = parse_cmdline()
     off = get_magic_off(args.input)
     header = read_header(args, off)
+    if os.path.isdir(args.output) and not args.output == './' :
+        ask = raw_input('The Output Dir %s have been exist. Can delete all It:(yes/n)\n' % (args.output))
+        if ask == 'yes':
+            shutil.rmtree(os.path.join(args.output, 'ramdisk'))
 
     print('BOARD_KERNEL_CMDLINE %s' % header.cmdline)
     print('BOARD_KERNEL_BASE %08x' % header.kernel_offset)
