@@ -139,99 +139,6 @@ def parse_os_patch_level(x):
         return (y << 4) | m
     return 0
 
-class JSONAction(Action):
-    """An argparse action that concatenates "-i" "INPUT" """
-
-    def __call__(self, parser, namespace, value, name):
-        if os.path.isdir(value):
-            js = glob.glob(join(value, '*-bootimg.json'))
-            if len(js) > 1:
-                print('error: too many files %s' % js)
-                print('you can use definite filename')
-                sys.exit(1)
-            value = js[0]
-        setattr(namespace, self.dest, value)
-        try:
-            with open(value, 'rb') as f_in:
-                _dict = json.load(f_in)
-
-            print('json %s:' % value)
-            #pprint.pprint(_dict, indent = 4)
-            for k, v in _dict.items():
-                if v is not None:
-                    setattr(namespace, k, v)
-            (_prefix, _ext) = basename(value).split('-')
-            _prefix = join(dirname(value),_prefix)
-            mfns = glob.glob(_prefix+'-zImage')
-            if len(mfns) > 1:
-                print('warning: too many files %s' % mfns)
-            setattr(namespace, 'kernel', open(mfns[0]))
-            mfns =glob.glob(_prefix+'-ramdisk.*')
-            if len(mfns) > 1:
-                print('warning: too many files %s' % mfns)
-            setattr(namespace, 'ramdisk', open(mfns[0]))
-            setattr(namespace, 'second', open(_prefix+'-second'))
-            setattr(namespace, 'dt', open(_prefix+'-dt'))
-            setattr(namespace, 'os_patch_level', parse_os_patch_level(_dict.get('os_patch_level')))
-            setattr(namespace, 'os_version', parse_os_version(_dict.get('os_version')))
-
-        except (IOError, ValueError):
-            _dict = {}
-        #pprint.pprint(namespace.__dict__, indent =4)
-
-
-class RAMDISKAction(Action):
-    """An argparse action that concatenates "--ramdisk" "ramdisk" """
-
-    def __call__(self, parser, namespace, value, name):
-        _fd = None
-        if os.path.isdir(value):
-            #_curdir = os.getcwd()
-
-            _fn = os.path.split(value)[0]
-            _fd = open(_fn+'.gz', 'wb')
-            #os.chdir(value)
-            p1 = Popen([join(getscript(), "mkbootfs"), "-f", join(getscript(), "etc/boot_filesystem_config.txt"), _fn], stdout=PIPE)
-            p2 = Popen([join(getscript(), "minigzip")], stdin=p1.stdout, stdout=_fd)
-            output = p2.communicate()[0]
-
-            #os.chdir(_curdir)
-            _fd.flush()
-
-            """unset gzip timestamp, gzip head 4->8"""
-            #_fd.seek(4)
-            #_fd.write(pack('4x'))
-            """unset timestamp end"""
-
-            _fd.close()
-            _fd = open(_fn+'.gz', 'rb')
-            setattr(namespace, self.dest, _fd)
-
-def update_ramdisk(args):
-    _fd = None
-    value=args.ramdisk
-    if os.path.isdir(value):
-        #_curdir = os.getcwd()
-
-        _fn = os.path.split(value)[0]
-        _fd = open(_fn+'.gz', 'wb')
-        #os.chdir(value)
-        p1 = Popen([join(getscript(), "mkbootfs"), "-f", join(getscript(), "etc/boot_filesystem_config.txt"), _fn], stdout=PIPE)
-        p2 = Popen([join(getscript(), "minigzip")], stdin=p1.stdout, stdout=_fd)
-        output = p2.communicate()[0]
-
-        #os.chdir(_curdir)
-        _fd.flush()
-
-        """unset gzip timestamp, gzip head 4->8"""
-        #_fd.seek(4)
-        #_fd.write(pack('4x'))
-        """unset timestamp end"""
-
-        _fd.close()
-        _fd = open(_fn+'.gz', 'rb')
-        setattr(args, 'ramdisk', _fd)
-
 def write_str_to_file(filename, s):
     with open(filename, 'wb') as f:
         f.write(s.encode())
@@ -248,9 +155,46 @@ def is_arm64(filename):
 
     return data[0]==ARMV8MAGIC
 
-def root_action(args):
-    shutil.copy2(join(getscript(), 'ramdisk/init.lucha.rc'), join(dirname(args.ramdisk),'init.lucha.rc'))
-    _rc_fn=join(dirname(args.ramdisk),'init.rc')
+
+def process_input(args):
+    """An argparse action that concatenates "-i" "INPUT" """
+
+    value = args.input
+    if os.path.isdir(value):
+        js = glob.glob(join(value, '*-bootimg.json'))
+        if len(js) > 1:
+            print('error: too many files %s' % js)
+            print('you can use definite filename')
+            sys.exit(1)
+        value = js[0]
+    setattr(args, 'input', value)
+    try:
+        with open(value, 'rb') as f_in:
+            _dict = json.load(f_in)
+
+        #pprint.pprint(_dict, indent = 4)
+        for k, v in _dict.items():
+            if v is not None:
+                setattr(args, k, v)
+        (_prefix, _ext) = basename(value).split('-')
+        _prefix = join(dirname(value),_prefix)
+        mfns = glob.glob(_prefix+'-zImage')
+        if len(mfns) > 1:
+            print('warning: too many files %s' % mfns)
+        setattr(args, 'kernel', open(mfns[0]))
+
+        setattr(args, 'second', open(_prefix+'-second'))
+        setattr(args, 'dt', open(_prefix+'-dt'))
+        setattr(args, 'os_patch_level', parse_os_patch_level(_dict.get('os_patch_level')))
+        setattr(args, 'os_version', parse_os_version(_dict.get('os_version')))
+
+    except (IOError, ValueError):
+        _dict = {}
+    #pprint.pprint(args.__dict__, indent =4)
+
+def root_action(args, rootdir):
+    shutil.copy2(join(getscript(), 'ramdisk/init.lucha.rc'), join(rootdir,'init.lucha.rc'))
+    _rc_fn=join(rootdir,'init.rc')
     _fd_rc=open(_rc_fn, 'rb')
     init_rc_str=''
     try:
@@ -268,26 +212,78 @@ def root_action(args):
     finally:
         _fd_rc.close()
     suffix='marmv7-8'
-    if is_arm64(join(dirname(args.ramdisk), 'init')):
+    if is_arm64(join(rootdir, 'init')):
         suffix='marmv8-8'
     if args.sign == '':
         pass
-        shutil.copy2(join(getscript(), 'security', 'verity_key'), join(dirname(args.ramdisk),'verity_key'))
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/adbd%s' %(suffix)), join(dirname(args.ramdisk),'sbin/adbd'))
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/init%s' %(suffix)), join(dirname(args.ramdisk),'sbin/init'))
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/su.cil'), join(dirname(args.ramdisk),'sbin/su.cil'))
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/dontauditsu.cil'), join(dirname(args.ramdisk),'sbin/dontauditsu.cil'))
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/init.sh'), join(dirname(args.ramdisk),'sbin/init.sh'))
+        shutil.copy2(join(getscript(), 'security', 'verity_key'), join(rootdir,'verity_key'))
+    shutil.copy2(join(getscript(), 'ramdisk/sbin/adbd%s' %(suffix)), join(rootdir,'sbin/adbd'))
+    shutil.copy2(join(getscript(), 'ramdisk/sbin/init%s' %(suffix)), join(rootdir,'sbin/init'))
+    shutil.copy2(join(getscript(), 'ramdisk/sbin/su.cil'), join(rootdir,'sbin/su.cil'))
+    shutil.copy2(join(getscript(), 'ramdisk/sbin/dontauditsu.cil'), join(rootdir,'sbin/dontauditsu.cil'))
+    shutil.copy2(join(getscript(), 'ramdisk/sbin/init.sh'), join(rootdir,'sbin/init.sh'))
+
+def process_ramdisk(args):
+    _fd = None
+    value= dirname(args.input)
+    if os.path.isdir(value):
+        #_curdir = os.getcwd()
+
+        _fn = join(value, 'ramdisk')
+        if args.level:
+            root_action(args, _fn)
+        _fd = open(_fn+'.gz', 'wb')
+        #os.chdir(value)
+        p1 = Popen([join(getscript(), "mkbootfs"), "-f", join(getscript(), "etc/boot_filesystem_config.txt"), _fn], stdout=PIPE)
+        p2 = Popen([join(getscript(), "minigzip")], stdin=p1.stdout, stdout=_fd)
+        output = p2.communicate()[0]
+
+        #os.chdir(_curdir)
+        _fd.flush()
+
+        """unset gzip timestamp, gzip head 4->8"""
+        #_fd.seek(4)
+        #_fd.write(pack('4x'))
+        """unset timestamp end"""
+
+        _fd.close()
+        _fd = open(_fn+'.gz', 'rb')
+        setattr(args, 'ramdisk', _fd)
+    elif os.path.isfile(value):
+        with open(value, 'rb') as _fd:
+            setattr(args, 'ramdisk', _fd)
+
+def process_cmdline(args):
+    if args.level:
+        if args.level == 2:
+            args.cmdline += " androidboot.selinux=permissive"
+        args.cmdline += " printk.disable_uart=0"
+        args.cmdline += " rdinit=/sbin/init"
+        if os.path.isdir(args.sign):
+            vsha = sha1()
+            vfn = join(getscript(), 'security', 'verity_key')
+            with open(vfn, 'rb') as _fd:
+                update_sha(vsha, _fd)
+
+            sha = sha1()
+            _fn = join(dirname(args.input), 'ramdisk', 'verity_key')
+            with open(_fn, 'rb') as _fd:
+                update_sha(sha, _fd)
+            args.disable_verity = not vsha.hexdigest() == sha.hexdigest()
+
+        if args.disable_verity:
+            args.cmdline += " androidboot.verify=disable"
+        args.cmdline += " -- "
 
 def parse_cmdline():
     parser = ArgumentParser()
 
-    parser.add_argument('-i', '--input', help='input the dirpath/filename of bootimg.json', type=str, action=JSONAction,
+    parser.add_argument('-i', '--input', help='input the dirpath/filename of bootimg.json', type=str,
                         required=True)
     parser.add_argument('-l', '--level',  help='Root Android Level, 0: only re-pack, 1: only adbd permissive,  2: full permissive', type=parse_int,
-                                   choices=[i for i in range(0,3)], default=0)
+                                   choices=[i for i in range(0,3)], default=1)
     parser.add_argument('-s', '--sign',  help='signing boot image type, default will disable dm-verity, such as Petito or U50APLUSTMO or dirpath of verity_key', type=str,
-                                   default='')
+                                   default=join(getscript(), 'security'))
     parser.add_argument('-d', '--disable_verity',  help='disable dm-verity checking when verity system/vendor verity table signature fail',
                                    action='store_true')
     parser.add_argument('--ramdisk', help='path to the dir ramdisk', type=str)
@@ -326,28 +322,18 @@ def write_data(args):
 
 def main():
     args = parse_cmdline()
-    if args.level:
-        if args.level == 2:
-            args.cmdline += " androidboot.selinux=permissive"
-        args.cmdline += " printk.disable_uart=0"
-        args.cmdline += " rdinit=/sbin/init"
-        if args.disable_verity or args.sign == '':
-            args.cmdline += " androidboot.verify=disable"
-            args.disable_verity = True
-        args.cmdline += " -- "
-        root_action(args)
-    if isinstance(args.ramdisk, str):
-        update_ramdisk(args)
+    if isinstance(args.input, str):
+        process_input(args)
+    process_ramdisk(args)
+    #pprint.pprint(args.__dict__, indent=4)
+    process_cmdline(args)
     pprint.pprint(args.__dict__, indent =4)
     img_id = write_header(args)
     write_data(args)
     args.output.flush()
     args.output.close()
     #qcom 
-    if args.sign == '':
-        retcode = call([join(getscript(), 'boot_signer'), '/boot', os.path.abspath(args.output.name), \
-            join(getscript(), 'security', 'verity.pk8'), join(getscript(), 'security', 'verity.x509.pem'), os.path.abspath(args.output.name)])
-    elif os.path.isdir(args.sign):
+    if os.path.isdir(args.sign):
         retcode = call([join(getscript(), 'boot_signer'), '/boot', os.path.abspath(args.output.name), \
             join(args.sign, 'verity.pk8'), join(args.sign,'verity.x509.pem'), os.path.abspath(args.output.name)])
     else:
