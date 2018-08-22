@@ -139,6 +139,28 @@ def parse_os_patch_level(x):
         return (y << 4) | m
     return 0
 
+class JSONAction(Action):
+    """An argparse action that concatenates "-i" "INPUT" """
+
+    def __call__(self, parser, namespace, value, name):
+        print('json %s:' % value)
+        if os.path.isdir(value):
+            js = glob.glob(join(value, '*-bootimg.json'))
+            if len(js) > 1:
+                raise ValueError('Dir {0:s} argument contain too many json: {1:s}'.
+                    format(self.input, js))
+            value = js[0]
+        try:
+            with open(value, 'rb') as f_in:
+                _dict = json.load(f_in)
+            _dict[u'injson'] = value
+            setattr(namespace, self.dest,_dict)
+        except (IOError, ValueError):
+            e = sys.exc_info()[1]
+            raise ValueError(' -i {0:s} {1:s}'.
+                format(value, e))
+        #pprint.pprint(namespace.__dict__, indent =4)
+
 def write_str_to_file(filename, s):
     with open(filename, 'wb') as f:
         f.write(s.encode())
@@ -155,36 +177,34 @@ def is_arm64(filename):
 
     return data[0]==ARMV8MAGIC
 
+def inputdir(args):
+    return args.input['injson']
 
-def process_input(args):
+
+def process_input(args, cmdparse):
     """An argparse action that concatenates "-i" "INPUT" """
 
-    value = args.input
-    if os.path.isdir(value):
-        js = glob.glob(join(value, '*-bootimg.json'))
-        if len(js) > 1:
-            print('error: too many files %s' % js)
-            print('you can use definite filename')
-            sys.exit(1)
-        value = js[0]
-    setattr(args, 'input', value)
+    value = inputdir(args)
     try:
-        with open(value, 'rb') as f_in:
-            _dict = json.load(f_in)
+        _dict = args.input
 
-        #pprint.pprint(_dict, indent = 4)
         for k, v in _dict.items():
-            if v is not None:
-                setattr(args, k, v)
+            if k == 'cmdline':
+                setattr(args, k, v + getattr(args, k))
+            elif v is not None and k in args.__dict__:
+                if getattr(args, k) == cmdparse.get_default(k):
+                    setattr(args, k, v)
         (_prefix, _ext) = basename(value).split('-')
         _prefix = join(dirname(value),_prefix)
         mfns = glob.glob(_prefix+'-zImage')
         if len(mfns) > 1:
             print('warning: too many files %s' % mfns)
-        setattr(args, 'kernel', open(mfns[0]))
-
-        setattr(args, 'second', open(_prefix+'-second'))
-        setattr(args, 'dt', open(_prefix+'-dt'))
+        if args.kernel == cmdparse.get_default('kernel'):
+            setattr(args, 'kernel', open(mfns[0]))
+        if args.second == cmdparse.get_default('second'):
+            setattr(args, 'second', open(_prefix+'-second'))
+        if args.dt == cmdparse.get_default('dt'):
+            setattr(args, 'dt', open(_prefix+'-dt'))
         setattr(args, 'os_patch_level', parse_os_patch_level(_dict.get('os_patch_level')))
         setattr(args, 'os_version', parse_os_version(_dict.get('os_version')))
 
@@ -225,7 +245,10 @@ def root_action(args, rootdir):
 
 def process_ramdisk(args):
     _fd = None
-    value= dirname(args.input)
+    if not args.ramdisk:
+        value= dirname(inputdir(args))
+    else:
+        value = args.ramdisk
     if os.path.isdir(value):
         #_curdir = os.getcwd()
 
@@ -248,6 +271,7 @@ def process_ramdisk(args):
 
         _fd.close()
         _fd = open(_fn+'.gz', 'rb')
+        setattr(args, 'rootdir', _fn)
         setattr(args, 'ramdisk', _fd)
     elif os.path.isfile(value):
         with open(value, 'rb') as _fd:
@@ -260,16 +284,17 @@ def process_cmdline(args):
         args.cmdline += " printk.disable_uart=0"
         args.cmdline += " rdinit=/sbin/init"
         if os.path.isdir(args.sign):
-            vsha = sha1()
-            vfn = join(getscript(), 'security', 'verity_key')
-            with open(vfn, 'rb') as _fd:
-                update_sha(vsha, _fd)
+            if args.rootdir:
+                vsha = sha1()
+                vfn = join(getscript(), 'security', 'verity_key')
+                with open(vfn, 'rb') as _fd:
+                    update_sha(vsha, _fd)
 
-            sha = sha1()
-            _fn = join(dirname(args.input), 'ramdisk', 'verity_key')
-            with open(_fn, 'rb') as _fd:
-                update_sha(sha, _fd)
-            args.disable_verity = not vsha.hexdigest() == sha.hexdigest()
+                sha = sha1()
+                _fn = join(args.rootdir, 'verity_key')
+                with open(_fn, 'rb') as _fd:
+                    update_sha(sha, _fd)
+                args.disable_verity = not vsha.hexdigest() == sha.hexdigest()
 
         if args.disable_verity:
             args.cmdline += " androidboot.verify=disable"
@@ -279,7 +304,7 @@ def parse_cmdline():
     parser = ArgumentParser()
 
     igparser = parser.add_mutually_exclusive_group(required=True)
-    igparser.add_argument('input', metavar='infile',  help='input the dirpath/filename of bootimg.json', type=str, nargs='?')
+    igparser.add_argument('input', metavar='infile',  help='input the dirpath/filename of bootimg.json', action=JSONAction, nargs='?')
     igparser.add_argument('--kernel', help='path to the kernel', type=FileType('rb'),
                         required=False)
 
@@ -291,7 +316,7 @@ def parse_cmdline():
                                    action='store_true')
     mkparser = parser.add_argument_group()
     
-    mkparser.add_argument('--ramdisk', help='path to the dir ramdisk', type=str)
+    mkparser.add_argument('--ramdisk', help='path to the dir/file ramdisk', type=str)
     mkparser.add_argument('--second', help='path to the 2nd bootloader', type=FileType('rb'))
     mkparser.add_argument('--cmdline', help='extra arguments to be passed on the '
                         'kernel command line', default='', action=ValidateStrLenAction, maxlen=1536)
@@ -314,7 +339,7 @@ def parse_cmdline():
     mkparser.add_argument('--dt', help='path to the device tree image', type=FileType('rb'))
     parser.add_argument('-o', '--output', help='output file name', type=FileType('wb'),
                         required=True)
-    return parser.parse_args()
+    return parser
 
 
 def write_data(args):
@@ -324,13 +349,16 @@ def write_data(args):
     write_padded_file(args.output, args.dt, args.pagesize)
 
 def main():
-    args = parse_cmdline()
-    if isinstance(args.input, str):
-        process_input(args)
-    process_ramdisk(args)
+    cmdparse = parse_cmdline()
+    args = cmdparse.parse_args()
     #pprint.pprint(args.__dict__, indent=4)
+    if args.input:
+        process_input(args, cmdparse)
+    #pprint.pprint(args.__dict__, indent=4)
+    process_ramdisk(args)
+    pprint.pprint(args.__dict__, indent=4)
     process_cmdline(args)
-    pprint.pprint(args.__dict__, indent =4)
+    #pprint.pprint(args.__dict__, indent =4)
     img_id = write_header(args)
     write_data(args)
     args.output.flush()
