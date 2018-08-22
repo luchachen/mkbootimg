@@ -278,37 +278,40 @@ def process_cmdline(args):
 def parse_cmdline():
     parser = ArgumentParser()
 
-    parser.add_argument('-i', '--input', help='input the dirpath/filename of bootimg.json', type=str,
-                        required=True)
+    igparser = parser.add_mutually_exclusive_group(required=True)
+    igparser.add_argument('input', metavar='infile',  help='input the dirpath/filename of bootimg.json', type=str, nargs='?')
+    igparser.add_argument('--kernel', help='path to the kernel', type=FileType('rb'),
+                        required=False)
+
     parser.add_argument('-l', '--level',  help='Root Android Level, 0: only re-pack, 1: only adbd permissive,  2: full permissive', type=parse_int,
                                    choices=[i for i in range(0,3)], default=1)
     parser.add_argument('-s', '--sign',  help='signing boot image type, default will disable dm-verity, such as Petito or U50APLUSTMO or dirpath of verity_key', type=str,
                                    default=join(getscript(), 'security'))
     parser.add_argument('-d', '--disable_verity',  help='disable dm-verity checking when verity system/vendor verity table signature fail',
                                    action='store_true')
-    parser.add_argument('--ramdisk', help='path to the dir ramdisk', type=str)
-    parser.add_argument('--kernel', help='path to the kernel', type=FileType('rb'),
-                        required=False)
-    parser.add_argument('--second', help='path to the 2nd bootloader', type=FileType('rb'))
-    parser.add_argument('--cmdline', help='extra arguments to be passed on the '
+    mkparser = parser.add_argument_group()
+    
+    mkparser.add_argument('--ramdisk', help='path to the dir ramdisk', type=str)
+    mkparser.add_argument('--second', help='path to the 2nd bootloader', type=FileType('rb'))
+    mkparser.add_argument('--cmdline', help='extra arguments to be passed on the '
                         'kernel command line', default='', action=ValidateStrLenAction, maxlen=1536)
-    parser.add_argument('--base', help='base address', type=parse_int, default=0x10000000)
-    parser.add_argument('--kernel_offset', help='kernel offset', type=parse_int, default=0x00008000)
-    parser.add_argument('--ramdisk_offset', help='ramdisk offset', type=parse_int, default=0x01000000)
-    parser.add_argument('--second_offset', help='2nd bootloader offset', type=parse_int,
+    mkparser.add_argument('--base', help='base address', type=parse_int, default=0x10000000)
+    mkparser.add_argument('--kernel_offset', help='kernel offset', type=parse_int, default=0x00008000)
+    mkparser.add_argument('--ramdisk_offset', help='ramdisk offset', type=parse_int, default=0x01000000)
+    mkparser.add_argument('--second_offset', help='2nd bootloader offset', type=parse_int,
                         default=0x00f00000)
-    parser.add_argument('--os_version', help='operating system version', type=parse_os_version,
+    mkparser.add_argument('--os_version', help='operating system version', type=parse_os_version,
                         default=0)
-    parser.add_argument('--os_patch_level', help='operating system patch level',
+    mkparser.add_argument('--os_patch_level', help='operating system patch level',
                         type=parse_os_patch_level, default=0)
-    parser.add_argument('--tags_offset', help='tags offset', type=parse_int, default=0x00000100)
-    parser.add_argument('--board', help='board name', default='', action=ValidateStrLenAction,
+    mkparser.add_argument('--tags_offset', help='tags offset', type=parse_int, default=0x00000100)
+    mkparser.add_argument('--board', help='board name', default='', action=ValidateStrLenAction,
                         maxlen=16)
-    parser.add_argument('--pagesize', help='page size', type=parse_int,
+    mkparser.add_argument('--pagesize', help='page size', type=parse_int,
                         choices=[2**i for i in range(11,18)], default=2048)
-    parser.add_argument('--id', help='print the image ID on standard output',
+    mkparser.add_argument('--id', help='print the image ID on standard output',
                         action='store_true')
-    parser.add_argument('--dt', help='path to the device tree image', type=FileType('rb'))
+    mkparser.add_argument('--dt', help='path to the device tree image', type=FileType('rb'))
     parser.add_argument('-o', '--output', help='output file name', type=FileType('wb'),
                         required=True)
     return parser.parse_args()
