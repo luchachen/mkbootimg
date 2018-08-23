@@ -270,14 +270,16 @@ def root_action(args, rootdir):
 
 def process_ramdisk(args):
     _fd = None
+
+    setattr(args, 'rootdir', None)
     if not args.ramdisk:
-        value= dirname(inputdir(args))
+        value = dirname(inputdir(args))
+        value = join(value, 'ramdisk')
     else:
         value = args.ramdisk
     if os.path.isdir(value):
         #_curdir = os.getcwd()
-
-        _fn = join(value, 'ramdisk')
+        _fn = value
         if args.level:
             root_action(args, _fn)
         _fd = open(_fn+'.gz', 'wb')
@@ -299,8 +301,8 @@ def process_ramdisk(args):
         setattr(args, 'rootdir', _fn)
         setattr(args, 'ramdisk', _fd)
     elif os.path.isfile(value):
-        with open(value, 'rb') as _fd:
-            setattr(args, 'ramdisk', _fd)
+        _fd = open(value, 'rb')
+        setattr(args, 'ramdisk', _fd)
 
 def process_cmdline(args):
     if args.level:
