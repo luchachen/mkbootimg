@@ -21,6 +21,7 @@ from os.path import basename, exists
 from struct import unpack, calcsize
 import zlib
 import os, json, binascii, shutil
+from mkimage  import mkimage_header, PART_MAGIC
 
 
 __LIBARCHIVE__= False
@@ -187,8 +188,17 @@ def write_input_to_file(args, filename, size):
 
     seek_padding(args.input, size, args.pagesize)
 
-def fix_ramdisk_extension(filename):
+def fix_ramdisk_extension(header, filename):
     bytes = []
+    hd_size = calcsize(mkimage_header) 
+    with open(filename, 'rb') as f:
+        data = unpack(mkimage_header, f.read(hd_size))
+        if data[0] == PART_MAGIC:
+            fn = filename+'.hdr'
+            rename(filename, fn)
+            header.mkimage = fn
+            with open(filename, 'wb') as wf:
+                wf.write(f.read(data[1]))
     with open(filename, 'rb') as f:
         data = f.read(2)
         if(len(data))!=2:
@@ -248,7 +258,6 @@ def write_data(args, header, off):
         write_str_to_file(file_prefix+'os_patch_level', header.os_patch_level)
     """
 
-    header.Save(file_prefix+'bootimg.json')
     seek_padding(args.input, header.headersz, args.pagesize)
 
     write_input_to_file(args, file_prefix+'zImage', header.kernel_size)
@@ -256,7 +265,8 @@ def write_data(args, header, off):
     write_input_to_file(args, file_prefix+'second', header.second_size)
     write_input_to_file(args, file_prefix+'dt', header.dt_size)
 
-    fn = fix_ramdisk_extension(file_prefix+'ramdisk')
+    fn = fix_ramdisk_extension(header, file_prefix+'ramdisk')
+    header.Save(file_prefix+'bootimg.json')
 
     if fn:
         _ramdisk = os.path.join(os.path.dirname(fn), 'ramdisk')

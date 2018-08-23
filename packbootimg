@@ -28,7 +28,7 @@ import glob
 from subprocess import *
 import shutil
 import pprint
-
+from mkimage  import mkimage_header, PART_MAGIC
 ARMV8MAGIC='\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00\x01\x00\x00\x00'
 
 def getscript():
@@ -55,7 +55,6 @@ def update_sha(sha, f):
 def pad_file(f, padding):
     pad = (padding - (f.tell() & (padding - 1))) & (padding - 1)
     f.write(pack(str(pad) + 'x'))
-
 
 def write_header(args):
     BOOT_MAGIC = 'ANDROID!'.encode()
@@ -331,6 +330,12 @@ def process_ramdisk(args):
     else:
         raise(ValueError(' not found ramdisks:{0:s} in level {1:d}'.
             format(value, args.level)))
+    if args.input['mkimage']:
+        _fn = _fd.name + '.hdr'
+        with open(_fn, 'wb') as f:
+            f.write(pack(mkimage_header, PART_MAGIC, filesize(_fd), 'ROOTFS'.encode(), 0, (b'\xFF'*472)))
+            f.write(_fd.read(filesize(_fd)))
+        setattr(args, 'ramdisk', open(_fn, 'rb'))
 
 def process_cmdline(args):
     cmdline = ''
