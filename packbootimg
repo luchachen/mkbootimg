@@ -86,9 +86,35 @@ def write_header(args):
     pad_file(args.output, args.pagesize)
     return img_id
 
+class ValidateStrListLenAction(Action):
+    def __init__(self, option_strings, dest, **kwargs):
+        if 'maxlen' not in kwargs:
+            raise ValueError('maxlen must be set')
+        self.maxlen = int(kwargs['maxlen'])
+        del kwargs['maxlen']
+        super(ValidateStrListLenAction, self).__init__(option_strings, dest, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        """
+        alen #androidboot.selinux=permissive printk.disable_uart=0 rdinit=/sbin/init androidboot.verify=disable'
+        append cmdline from process_cmdline
+
+        """
+        alen = 99  #androidboot.selinux=permissive printk.disable_uart=0 rdinit=/sbin/init androidboot.verify=disable'
+        if namespace.input:
+            alen += len(namespace.input['cmdline'])
+        if isinstance(values, list):
+            if len(' '. join(values)) > (self.maxlen - alen):
+                raise ValueError('String argument too long: max {0:d}, got {1:d}'.
+                    format(self.maxlen - alen, len(' '. join(values))))
+        else:
+            if len(values) > (self.maxlen - alen):
+                raise ValueError('String argument too long: max {0:d}, got {1:d}'.
+                    format(self.maxlen - alen, len(values)))
+        setattr(namespace, self.dest, values)
 
 class ValidateStrLenAction(Action):
-    def __init__(self, option_strings, dest, nargs=None, **kwargs):
+    def __init__(self, option_strings, dest, nargs= None, **kwargs):
         if 'maxlen' not in kwargs:
             raise ValueError('maxlen must be set')
         self.maxlen = int(kwargs['maxlen'])
@@ -190,7 +216,7 @@ def process_input(args, cmdparse):
 
         for k, v in _dict.items():
             if k == 'cmdline':
-                setattr(args, k, v + getattr(args, k))
+                continue
             elif v is not None and k in args.__dict__:
                 if getattr(args, k) == cmdparse.get_default(k):
                     setattr(args, k, v)
@@ -279,26 +305,42 @@ def process_ramdisk(args):
 
 def process_cmdline(args):
     if args.level:
+        cmdline = ''
+        if args.cmdline:
+            cmdline = args.cmdline[0] + ' '
+        if args.input:
+            cmdline += args.input['cmdline']
         if args.level == 2:
-            args.cmdline += " androidboot.selinux=permissive"
-        args.cmdline += " printk.disable_uart=0"
-        args.cmdline += " rdinit=/sbin/init"
+            cmdline += " androidboot.selinux=permissive"
+        cmdline += " printk.disable_uart=0"
+        cmdline += " rdinit=/sbin/init"
         if os.path.isdir(args.sign):
             if args.rootdir:
-                vsha = sha1()
-                vfn = join(getscript(), 'security', 'verity_key')
-                with open(vfn, 'rb') as _fd:
-                    update_sha(vsha, _fd)
+                try:
+                    _fn = join(args.rootdir, 'verity_key')
+                    sha = sha1()
+                    with open(_fn, 'rb') as _fd:
+                        update_sha(sha, _fd)
 
-                sha = sha1()
-                _fn = join(args.rootdir, 'verity_key')
-                with open(_fn, 'rb') as _fd:
-                    update_sha(sha, _fd)
-                args.disable_verity = not vsha.hexdigest() == sha.hexdigest()
+                    vsha = sha1()
+                    vfn = join(getscript(), 'security', 'verity_key')
+                    with open(vfn, 'rb') as _fd:
+                        update_sha(vsha, _fd)
+                    args.disable_verity = not vsha.hexdigest() == sha.hexdigest()
+                except (IOError, ValueError):
+                    e = sys.exc_info()[1]
+                    print(ValueError(' rootdir:{0:s} {1:s}'.
+                        format(args.rootdir, e)))
 
         if args.disable_verity:
-            args.cmdline += " androidboot.verify=disable"
-        args.cmdline += " -- "
+            cmdline += " androidboot.verify=disable"
+        if len(args.cmdline) > 1:
+            cmdline += ' ' + ' '. join(args.cmdline[1:])
+        if len(cmdline) > 1024:
+            raise(ValueError(' cmdline:{0:s} >  {1:d}'.
+                format(cmdline, 1024)))
+        args.cmdline = cmdline
+
 
 def parse_cmdline():
     parser = ArgumentParser()
@@ -319,7 +361,7 @@ def parse_cmdline():
     mkparser.add_argument('--ramdisk', help='path to the dir/file ramdisk', type=str)
     mkparser.add_argument('--second', help='path to the 2nd bootloader', type=FileType('rb'))
     mkparser.add_argument('--cmdline', help='extra arguments to be passed on the '
-                        'kernel command line', default='', action=ValidateStrLenAction, maxlen=1536)
+                        'kernel command line', default='', action=ValidateStrListLenAction, maxlen=1024, nargs='*') #maxlen=1536-99
     mkparser.add_argument('--base', help='base address', type=parse_int, default=0x10000000)
     mkparser.add_argument('--kernel_offset', help='kernel offset', type=parse_int, default=0x00008000)
     mkparser.add_argument('--ramdisk_offset', help='ramdisk offset', type=parse_int, default=0x01000000)
@@ -356,9 +398,9 @@ def main():
         process_input(args, cmdparse)
     #pprint.pprint(args.__dict__, indent=4)
     process_ramdisk(args)
-    pprint.pprint(args.__dict__, indent=4)
+    #pprint.pprint(args.__dict__, indent=4)
     process_cmdline(args)
-    #pprint.pprint(args.__dict__, indent =4)
+    pprint.pprint(args.__dict__, indent =4)
     img_id = write_header(args)
     write_data(args)
     args.output.flush()
