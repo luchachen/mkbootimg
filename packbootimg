@@ -169,7 +169,6 @@ class JSONAction(Action):
     """An argparse action that concatenates "-i" "INPUT" """
 
     def __call__(self, parser, namespace, value, name):
-        print('json %s:' % value)
         if os.path.isdir(value):
             js = glob.glob(join(value, '*-bootimg.json'))
             if len(js) > 1:
