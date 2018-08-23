@@ -307,12 +307,12 @@ def process_ramdisk(args):
         setattr(args, 'ramdisk', _fd)
 
 def process_cmdline(args):
+    cmdline = ''
+    if args.cmdline:
+        cmdline = args.cmdline[0] + ' '
+    if args.input:
+        cmdline += args.input['cmdline']
     if args.level:
-        cmdline = ''
-        if args.cmdline:
-            cmdline = args.cmdline[0] + ' '
-        if args.input:
-            cmdline += args.input['cmdline']
         if args.level == 2:
             cmdline += " androidboot.selinux=permissive"
         cmdline += " printk.disable_uart=0"
@@ -337,12 +337,12 @@ def process_cmdline(args):
 
         if args.disable_verity:
             cmdline += " androidboot.verify=disable"
-        if len(args.cmdline) > 1:
-            cmdline += ' ' + ' '. join(args.cmdline[1:])
-        if len(cmdline) > 1024:
-            raise(ValueError(' cmdline:{0:s} >  {1:d}'.
-                format(cmdline, 1024)))
-        args.cmdline = cmdline
+    if len(args.cmdline) > 1:
+        cmdline += ' ' + ' '. join(args.cmdline[1:])
+    if len(cmdline) > 1024:
+        raise(ValueError(' cmdline:{0:s} >  {1:d}'.
+            format(cmdline, 1024)))
+    args.cmdline = cmdline
 
 
 def parse_cmdline():
