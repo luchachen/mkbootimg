@@ -210,9 +210,9 @@ def inputdir(args):
 
 def process_input(args, cmdparse):
     """An argparse action that concatenates "-i" "INPUT" """
-
-    value = inputdir(args)
-    try:
+    value = None
+    if args.input:
+        value = inputdir(args)
         _dict = args.input
 
         for k, v in _dict.items():
@@ -221,8 +221,12 @@ def process_input(args, cmdparse):
             elif v is not None and k in args.__dict__:
                 if getattr(args, k) == cmdparse.get_default(k):
                     setattr(args, k, v)
-        (_prefix, _ext) = basename(value).split('-')
-        _prefix = join(dirname(value),_prefix)
+        setattr(args, 'os_patch_level', parse_os_patch_level(_dict.get('os_patch_level')))
+        setattr(args, 'os_version', parse_os_version(_dict.get('os_version')))
+    elif args.kernel:
+        value = args.kernel.name
+    try:
+        _prefix = get_prefix(value)
         mfns = glob.glob(_prefix+'-zImage')
         if len(mfns) > 1:
             print('warning: too many files %s' % mfns)
@@ -232,11 +236,12 @@ def process_input(args, cmdparse):
             setattr(args, 'second', open(_prefix+'-second'))
         if args.dt == cmdparse.get_default('dt'):
             setattr(args, 'dt', open(_prefix+'-dt'))
-        setattr(args, 'os_patch_level', parse_os_patch_level(_dict.get('os_patch_level')))
-        setattr(args, 'os_version', parse_os_version(_dict.get('os_version')))
 
     except (IOError, ValueError):
         _dict = {}
+        e = sys.exc_info()[1]
+        raise ValueError(' -i {0:s} {1:s}'.
+            format(value, e))
     #pprint.pprint(args.__dict__, indent =4)
 
 def root_action(args, rootdir):
@@ -270,15 +275,30 @@ def root_action(args, rootdir):
     shutil.copy2(join(getscript(), 'ramdisk/sbin/dontauditsu.cil'), join(rootdir,'sbin/dontauditsu.cil'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/init.sh'), join(rootdir,'sbin/init.sh'))
 
+def get_prefix(infile):
+    (_prefix, _ext) = basename(infile).split('-')
+    _prefix = join(dirname(infile),_prefix)
+    return _prefix
+
 def process_ramdisk(args):
     _fd = None
-
+    value = None
     setattr(args, 'rootdir', None)
-    if not args.ramdisk:
-        value = dirname(inputdir(args))
-        value = join(value, 'ramdisk')
+    if not args.input:
+        value = get_prefix(args.kernel.name) + '-ramdisk.gz'
     else:
-        value = args.ramdisk
+        value = inputdir(args)
+    if not args.ramdisk:
+        if args.level == 0:
+            _prefix = get_prefix(value)
+            mfns = glob.glob(_prefix+'-ramdisk.gz')
+            if len(mfns) > 1:
+                raise(ValueError(' auto ramdisks:{0:s} in level {1:d}'.
+                    format(mfns, 0)))
+        else:
+            value = join(dirname(value), 'ramdisk')
+    else:
+        value = os.path.normpath(args.ramdisk)
     if os.path.isdir(value):
         #_curdir = os.getcwd()
         _fn = value
@@ -305,6 +325,9 @@ def process_ramdisk(args):
     elif os.path.isfile(value):
         _fd = open(value, 'rb')
         setattr(args, 'ramdisk', _fd)
+    else:
+        raise(ValueError(' not found ramdisks:{0:s} in level {1:d}'.
+            format(value, args.level)))
 
 def process_cmdline(args):
     cmdline = ''
@@ -397,8 +420,7 @@ def main():
     cmdparse = parse_cmdline()
     args = cmdparse.parse_args()
     #pprint.pprint(args.__dict__, indent=4)
-    if args.input:
-        process_input(args, cmdparse)
+    process_input(args, cmdparse)
     #pprint.pprint(args.__dict__, indent=4)
     process_ramdisk(args)
     #pprint.pprint(args.__dict__, indent=4)
