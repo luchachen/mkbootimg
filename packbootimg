@@ -220,9 +220,12 @@ def process_input(args, cmdparse):
                 continue
             elif v is not None and k in args.__dict__:
                 if getattr(args, k) == cmdparse.get_default(k):
-                    setattr(args, k, v)
-        setattr(args, 'os_patch_level', parse_os_patch_level(_dict.get('os_patch_level')))
-        setattr(args, 'os_version', parse_os_version(_dict.get('os_version')))
+                    if k == 'os_version':
+                        setattr(args, k, parse_os_version(v))
+                    elif k == 'os_patch_level':
+                        setattr(args, k, parse_os_patch_level(v))
+                    else:
+                        setattr(args, k, v)
     elif args.kernel:
         value = args.kernel.name
     try:
