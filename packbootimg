@@ -379,9 +379,9 @@ def parse_cmdline():
     igparser.add_argument('--kernel', help='path to the kernel', type=FileType('rb'),
                         required=False)
 
-    parser.add_argument('-l', '--level',  help='Root Android Level, 0: only re-pack, 1: only adbd permissive,  2: full permissive', type=parse_int,
+    parser.add_argument('-l', '--level',  help='Root Android Level, 0: only re-pack, 1: (default) only adbd permissive,  2: full permissive', type=parse_int,
                                    choices=[i for i in range(0,3)], default=1)
-    parser.add_argument('-s', '--sign',  help='signing boot image type, default will disable dm-verity, such as Petito or U50APLUSTMO or dirpath of verity_key', type=str,
+    parser.add_argument('-s', '--sign',  help='signing boot image type, (default) will disable dm-verity, such as Petito or U50APLUSTMO or dirpath of verity_key', type=str,
                                    default=join(getscript(), 'security'))
     parser.add_argument('-d', '--disable_verity',  help='disable dm-verity checking when verity system/vendor verity table signature fail',
                                    action='store_true')
