@@ -310,8 +310,17 @@ def _run(cmd):
     """Replacement for os.system, with hiding of stdout+stderr messages.
     """
     with open(os.devnull, 'wb') as devnull:
-        subprocess.check_call(
-                cmd.split(), stdout=devnull, stderr=subprocess.STDOUT)
+        try:
+            subprocess.check_call(
+                    cmd.split(), stdout=devnull, stderr=subprocess.STDOUT)
+            if None:
+                subprocess.check_call(
+                        cmd.split(), stderr=subprocess.STDOUT)
+        except(OSError, ValueError):
+            e = sys.exc_info()[1]
+            raise ValueError('command {0:s} {1:s}'.
+                format(cmd.split(), e))
+
 
 def permissive_adbd(args, rootdir, ver):
     com = ('{sepinject:s}  -Z adbd -P {sepolicy:s} -o {outfile:s}'.format( \
@@ -476,7 +485,7 @@ def parse_cmdline():
 
     parser.add_argument('-l', '--level',  help='Root Android Level, 0: only re-pack, 1: (default) only adbd permissive,  2: full permissive', type=parse_int,
                                    choices=[i for i in range(0,3)], default=1)
-    parser.add_argument('-s', '--sign',  help='signing boot image type, (default) will disable dm-verity, such as Petito or U50APLUSTMO or dirpath of verity_key', type=str,
+    parser.add_argument('-s', '--sign',  help='signing boot image type, (default) will disable dm-verity, such as Pepito or U50APLUSTMO or dirpath of verity_key', type=str,
                                    default=join(getscript(), 'security'))
     parser.add_argument('-d', '--disable_verity',  help='disable dm-verity checking when verity system/vendor verity table signature fail',
                                    action='store_true')
@@ -507,6 +516,20 @@ def parse_cmdline():
                         required=True)
     return parser
 
+def process_sign(args):
+    #qcom 
+    if os.path.isdir(args.sign):
+        com = ('{bootsigner:s} /boot {infile:s} {veritypk:s} {veritypem:s} {infile:s}'.format(\
+                bootsigner=join(getscript(), 'boot_signer'), infile=os.path.abspath(args.output.name), \
+                veritypk=join(args.sign, 'verity.pk8'), veritypem=join(args.sign,'verity.x509.pem')))
+        _run(com)
+    else:
+        com = ('{bootsigner:s} {project:s} {rollbackver:d} boot {infile:s} '.format(\
+                bootsigner=join(getscript(), 'jrdsz_sign_tool/st.sh'), project=args.sign, rollbackver=0, \
+                infile=os.path.abspath(args.output.name)))
+        _run(com)
+    #retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), 'Pepito', '0', 'boot', os.path.abspath(args.output.name)])
+
 
 def write_data(args):
     write_padded_file(args.output, args.kernel, args.pagesize)
@@ -528,13 +551,7 @@ def main():
     write_data(args)
     args.output.flush()
     args.output.close()
-    #qcom 
-    if os.path.isdir(args.sign):
-        retcode = call([join(getscript(), 'boot_signer'), '/boot', os.path.abspath(args.output.name), \
-            join(args.sign, 'verity.pk8'), join(args.sign,'verity.x509.pem'), os.path.abspath(args.output.name)])
-    else:
-        retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), args.sign, '0', 'boot', os.path.abspath(args.output.name)])
-    #retcode = call([join(getscript(), 'jrdsz_sign_tool/st.sh'), 'Pepito', '0', 'boot', os.path.abspath(args.output.name)])
+    process_sign(args)
     if args.id:
         if isinstance(img_id, str):
             # Python 2's struct.pack returns a string, but py3 returns bytes.
