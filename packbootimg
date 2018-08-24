@@ -26,9 +26,12 @@ import re
 import json
 import glob
 from subprocess import *
+import subprocess
 import shutil
 import pprint
 from mkimage  import mkimage_header, PART_MAGIC
+from string import atoi, replace
+
 ARMV8MAGIC='\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00\x01\x00\x00\x00'
 
 def getscript():
@@ -246,7 +249,87 @@ def process_input(args, cmdparse):
             format(value, e))
     #pprint.pprint(args.__dict__, indent =4)
 
+def get_android_version(args, rootdir):
+    version = 4
+    fn_selinux = join(rootdir, 'selinux_version')
+    fn_prop = join(rootdir, 'default.prop')
+    if args.input and args.input.has_key('os_version') and args.input['os_version']:
+        version =  atoi(args.input['os_version'].split(".")[0])
+    elif os.path.isfile(fn_selinux):
+        with open(fn_selinux) as f:
+            for buildFingerprintOverride in f.readlines():
+                #print(buildFingerprintOverride)
+                fingerprintPrefix = buildFingerprintOverride.split(":")[0]
+                fingerprintTail = buildFingerprintOverride.split(":")[1]
+                versionOverride = fingerprintTail.split("/")[0]
+                version = atoi(versionOverride.split(".")[0])
+    elif os.path.isfile(fn_prop):
+        with open(fn_prop) as f:
+            for line in f.readlines():
+                if line.split("=")[0] in 'ro.bootimage.build.fingerprint':
+                    buildFingerprintOverride = line.split("=")[1]
+                    #print(buildFingerprintOverride)
+                    fingerprintPrefix = buildFingerprintOverride.split(":")[0]
+                    fingerprintTail = buildFingerprintOverride.split(":")[1]
+                    versionOverride = fingerprintTail.split("/")[0]
+                    version = atoi(versionOverride.split(".")[0])
+    return version
+
+def norm_version(version):
+    ver = 4
+    if version <= 6:
+        ver = 6
+    elif version == 7:
+        ver = 7
+    elif version == 8:
+        ver = 8
+    else:
+        raise(ValueError(' could not support the android version {0:d}'.
+            format(version)))
+    return ver
+
+def patch_prop(args, rootdir):
+    prop_fn = join(rootdir, 'default.prop')
+    done = False
+    props = ''
+    for line in open(prop_fn):
+        if 'ro.secure=' or 'ro.adb.secure=' in line:
+            line = replace(line, '1', '0')
+        if 'ro.debuggable=' in line:
+            line = replace(line, '0', '1')
+        if 'persist.sys.usb.config=' in line:
+            line = line.split('=')[0] + '=mtp,adb\n'
+            done = True
+        props += line
+    if not done:
+        props +='persist.sys.usb.config=mtp,adb\n'
+    with open(prop_fn, 'wb') as f:
+        f.write(props.encode('utf-8'))
+
+def _run(cmd):
+    """Replacement for os.system, with hiding of stdout+stderr messages.
+    """
+    with open(os.devnull, 'wb') as devnull:
+        subprocess.check_call(
+                cmd.split(), stdout=devnull, stderr=subprocess.STDOUT)
+
+def permissive_adbd(args, rootdir, ver):
+    com = ('{sepinject:s}  -Z adbd -P {sepolicy:s} -o {outfile:s}'.format( \
+        sepinject=join(getscript(), 'sepolicy-inject-%d' % norm_version(ver)),\
+        sepolicy=join(rootdir, 'sepolicy'), outfile=join(dirname(rootdir), 'sepolicy')))
+    _run(com)
+    com = ('{sepinject:s}  -Z shell -P {outfile:s} -o {sepolicy:s}'.format(  \
+        sepinject=join(getscript(), 'sepolicy-inject-%d' % norm_version(ver)),\
+        outfile=join(dirname(rootdir), 'sepolicy'), sepolicy=join(rootdir, 'sepolicy')))
+    _run(com)
+    com = ('{ckpolicy:s}  -M -b {sepolicy:s}'.format(  \
+        ckpolicy=join(getscript(), 'checkpolicy-%d' % norm_version(ver)),\
+        sepolicy=join(rootdir, 'sepolicy')))
+    _run(com)
+
+
 def root_action(args, rootdir):
+    ver = get_android_version(args, rootdir)
     shutil.copy2(join(getscript(), 'ramdisk/init.lucha.rc'), join(rootdir,'init.lucha.rc'))
     _rc_fn=join(rootdir,'init.rc')
     _fd_rc=open(_rc_fn, 'rb')
@@ -260,20 +343,29 @@ def root_action(args, rootdir):
                 init_rc_str += 'import /init.lucha.rc\n'
             init_rc_str +=line
         with open(_rc_fn, 'wb') as f:
-            f.write(init_rc_str.encode())
+            #TODO init_rc_str.encode()
+            f.write(init_rc_str)
     finally:
         _fd_rc.close()
-    suffix='marmv7-8'
+    suffix='marmv7-%d' % norm_version(ver)
     if is_arm64(join(rootdir, 'init')):
-        suffix='marmv8-8'
+        suffix='marmv8-%d' % norm_version(ver)
     if args.sign == '':
         pass
         shutil.copy2(join(getscript(), 'security', 'verity_key'), join(rootdir,'verity_key'))
     shutil.copy2(join(getscript(), 'ramdisk/sbin/adbd%s' %(suffix)), join(rootdir,'sbin/adbd'))
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/init%s' %(suffix)), join(rootdir,'sbin/init'))
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/su.cil'), join(rootdir,'sbin/su.cil'))
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/dontauditsu.cil'), join(rootdir,'sbin/dontauditsu.cil'))
-    shutil.copy2(join(getscript(), 'ramdisk/sbin/init.sh'), join(rootdir,'sbin/init.sh'))
+    if ver <= 7:
+        patch_prop(args, rootdir)
+        if ver >= 5:
+            permissive_adbd(args, rootdir, ver)
+    elif ver == 8:
+        shutil.copy2(join(getscript(), 'ramdisk/sbin/init%s' %(suffix)), join(rootdir,'sbin/init'))
+        shutil.copy2(join(getscript(), 'ramdisk/sbin/su.cil'), join(rootdir,'sbin/su.cil'))
+        shutil.copy2(join(getscript(), 'ramdisk/sbin/dontauditsu.cil'), join(rootdir,'sbin/dontauditsu.cil'))
+        shutil.copy2(join(getscript(), 'ramdisk/sbin/init.sh'), join(rootdir,'sbin/init.sh'))
+    else:
+        raise(ValueError(' could not support the android version {0:d}'.
+            format(version)))
 
 def get_prefix(infile):
     (_prefix, _ext) = basename(infile).split('-')
