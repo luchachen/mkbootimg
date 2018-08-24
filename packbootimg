@@ -206,7 +206,7 @@ def is_arm64(filename):
 
     return data[0]==ARMV8MAGIC
 
-def inputdir(args):
+def inputjson(args):
     return args.input['injson']
 
 
@@ -214,7 +214,7 @@ def process_input(args, cmdparse):
     """An argparse action that concatenates "-i" "INPUT" """
     value = None
     if args.input:
-        value = inputdir(args)
+        value = inputjson(args)
         _dict = args.input
 
         for k, v in _dict.items():
@@ -388,7 +388,7 @@ def process_ramdisk(args):
     if not args.input:
         value = get_prefix(args.kernel.name) + '-ramdisk.gz'
     else:
-        value = inputdir(args)
+        value = inputjson(args)
     if not args.ramdisk:
         if args.level == 0:
             _prefix = get_prefix(value)
