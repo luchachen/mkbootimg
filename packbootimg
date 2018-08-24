@@ -259,10 +259,8 @@ def root_action(args, rootdir):
             if not done and 'import /init.environ.rc' in line:
                 init_rc_str += 'import /init.lucha.rc\n'
             init_rc_str +=line
-        _fd_rc.close()
         with open(_rc_fn, 'wb') as f:
             f.write(init_rc_str.encode())
-        f.close()
     finally:
         _fd_rc.close()
     suffix='marmv7-8'
