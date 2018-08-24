@@ -97,7 +97,7 @@ function fileExist()
 function sign_process()
 {
   i=0
-  while( test $i -lt 6 ) #6
+  while( test $i -lt 3 ) #6
   do
     i=$(($i+1))
     echo Sign count $i
@@ -127,17 +127,17 @@ function sign_process()
 	  break
     else
       sleep 5
-      if test $i -eq 2; then
+      if test $i -eq 1; then
         mv $cfg_magic_file "$cfg_magic_file"_retry
         sed "s/servip=\"10.128.180.220\"/servip=\"10.128.180.117\"/" "$cfg_magic_file"_retry > $cfg_magic_file  
         rm "$cfg_magic_file"_retry
 		echo "Try other server!!!"
-      elif test $i -eq 4; then
+      elif test $i -eq 2; then
         mv $cfg_magic_file "$cfg_magic_file"_retry
         sed "s/servip=\"10.128.180.117\"/servip=\"10.128.180.21\"/" "$cfg_magic_file"_retry > $cfg_magic_file
         rm "$cfg_magic_file"_retry
 		echo "Try the third server!!!"
-      elif test $i -lt 6; then
+      elif test $i -lt 3; then
         continue
       else
 		echo "Sign exception occur"
