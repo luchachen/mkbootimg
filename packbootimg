@@ -174,7 +174,7 @@ class JSONAction(Action):
             js = glob.glob(join(value, '*-bootimg.json'))
             if len(js) > 1:
                 raise ValueError('Dir {0:s} argument contain too many json: {1:s}'.
-                    format(self.input, js))
+                    format(value, js))
             value = js[0]
         try:
             with open(value, 'rb') as f_in:
@@ -330,8 +330,8 @@ def process_ramdisk(args):
     else:
         raise(ValueError(' not found ramdisks:{0:s} in level {1:d}'.
             format(value, args.level)))
-    if args.input['mkimage']:
-        _fn = _fd.name + '.hdr'
+    if args.input and args.input.has_key('mkimage'):
+        _fn = os.path.splitext(_fd.name)[0] + '.hdr'
         with open(_fn, 'wb') as f:
             f.write(pack(mkimage_header, PART_MAGIC, filesize(_fd), 'ROOTFS'.encode(), 0, (b'\xFF'*472)))
             f.write(_fd.read(filesize(_fd)))
