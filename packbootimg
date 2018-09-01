@@ -447,6 +447,7 @@ def process_cmdline(args):
         if args.level == 2:
             cmdline += " androidboot.selinux=permissive"
         cmdline += " printk.disable_uart=0"
+        cmdline += " uart_enable=1"
         cmdline += " rdinit=/sbin/init"
         if os.path.isdir(args.sign):
             if args.rootdir:
