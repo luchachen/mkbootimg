@@ -24,7 +24,8 @@ import zlib
 import os, json, binascii, shutil
 from mkimage  import mkimage_header, PART_MAGIC
 
-
+BOOT_HEADER_VERSION_ZERO=0
+BOOT_HEADER_VERSION_ONE=1
 __LIBARCHIVE__= False
 if __LIBARCHIVE__:
     from libarchive.extract import *
@@ -33,6 +34,10 @@ if __LIBARCHIVE__:
 else:
     from patoolib import extract_archive
 
+
+def get_number_of_pages(image_size, page_size):
+    """calculates the number of pages required for the image"""
+    return (image_size + page_size - 1) / page_size
 
 def ROUNDDOWN(number, alignment):
     return ((number) & ~((alignment)-1))
@@ -105,31 +110,58 @@ def get_magic_off(f):
 
 def read_header(args, off):
     args.input.seek(off)
-    fmt = '8s10I16s512s32s1024s'
+    fmt = '8s10I16s512s32s1024sIQI'
     unpacked = auto_unpack(fmt, args.input)
 
     parsed = Bunch()
     parsed.headersz = calcsize(fmt)
-    parsed.magic = unpacked[0]
+    parsed.boot_magic = unpacked[0]
+    print('boot_magic: %s' % parsed.boot_magic)
     parsed.kernel_size = unpacked[1]
+    print('kernel_size: %s' % parsed.kernel_size)
     parsed.kernel_addr = unpacked[2]
+    print('kernel load address: %s' % parsed.kernel_addr)
     parsed.ramdisk_size = unpacked[3]
+    print('ramdisk size: %s' % parsed.ramdisk_size)
     parsed.ramdisk_addr = unpacked[4]
+    print('ramdisk load address: %s' % parsed.ramdisk_addr)
     parsed.second_size = unpacked[5]
+    print('second bootloader size: %s' % parsed.second_size)
     parsed.second_addr = unpacked[6]
+    print('second bootloader load address: %s' % parsed.second_addr)
     parsed.tags_addr = unpacked[7]
-    parsed.pagesize = unpacked[8]
-    parsed.dt_size = unpacked[9]
-    parsed.name = unpacked[11].partition(b'\0')[0].decode()
+    print('kernel tags load address: %s' % parsed.tags_addr)
+    parsed.page_size = unpacked[8]
+    print('page size: %s' % parsed.page_size)
+    parsed.header_version = unpacked[9]
+    parsed.dt_size = 0
+    parsed.recovery_dtbo_size = 0
+    print('boot image header version: %s' % parsed.header_version)
+    parsed.product_name = unpacked[11].partition(b'\0')[0].decode()
+    print('product name: %s' % parsed.product_name)
     parsed.cmdline = unpacked[12].partition(b'\0')[0].decode()
+    print('command line args: %s' % parsed.cmdline)
     parsed.id = unpacked[13]
-    extracmdline = ''
+    extra_cmdline = ''
     try:
-        extracmdline = unpacked[14].partition(b'\0')[0].decode()
+        extra_cmdline = unpacked[14].partition(b'\0')[0].decode()
+        print('additional command line args: %s' % extra_cmdline)
     except:
-        print("Not found extra cmdline %s" % extracmdline)
+        print("Not found extra cmdline %s" % extra_cmdline)
     finally:
-        parsed.cmdline += extracmdline
+        parsed.cmdline += extra_cmdline
+
+    if parsed.header_version == BOOT_HEADER_VERSION_ONE:
+        parsed.recovery_dtbo_size = unpacked[15]
+        print('recovery dtbo size: %s' % parsed.recovery_dtbo_size)
+        parsed.recovery_dtbo_offset = unpacked[16]
+        print('recovery dtbo offset: %s' % parsed.recovery_dtbo_offset)
+        parsed.boot_header_size = unpacked[17]
+        print('boot header size: %s' % parsed.boot_header_size)
+    elif parsed.header_version == BOOT_HEADER_VERSION_ZERO:
+        parsed.recovery_dtbo_size = 0
+    else:
+        parsed.dt_size = parsed.header_version
 
     os_version = unpacked[10]>>11
     os_patch_level = unpacked[10]&0x7ff
@@ -147,9 +179,10 @@ def read_header(args, off):
         m = os_patch_level&0xf
         parsed.os_patch_level = '%04d-%02d-%02d' % (y,m,0)
 
+    print('os version and patch level: %s %s' % (parsed.os_version, parsed.os_patch_level))
     # find common base of all loading addresses
     parsed.base = min(parsed.kernel_addr, parsed.ramdisk_addr, parsed.second_addr, parsed.tags_addr)
-    parsed.base = ROUNDDOWN(parsed.base, parsed.pagesize)
+    parsed.base = ROUNDDOWN(parsed.base, parsed.page_size)
     if (parsed.base&0xffff) == 0x8000:
         parsed.base -= 0x8000
 
@@ -158,6 +191,23 @@ def read_header(args, off):
     parsed.ramdisk_offset = parsed.ramdisk_addr - parsed.base
     parsed.second_offset = parsed.second_addr - parsed.base
     parsed.tags_offset = parsed.tags_addr - parsed.base
+
+    # The first page contains the boot header
+    num_header_pages = 1
+
+    num_kernel_pages = get_number_of_pages(parsed.kernel_size, parsed.page_size)
+    parsed.kernel_offset = parsed.page_size * num_header_pages  # header occupies a page
+    #image_info_list = [(kernel_offset, kernel_size, 'kernel')]
+
+    num_ramdisk_pages = get_number_of_pages(parsed.ramdisk_size, parsed.page_size)
+    parsed.ramdisk_offset = parsed.page_size * (num_header_pages + num_kernel_pages
+                                 ) # header + kernel
+    #image_info_list.append((ramdisk_offset, ramdisk_size, 'ramdisk'))
+
+    parsed.second_offset = parsed.page_size * (
+        num_header_pages + num_kernel_pages + num_ramdisk_pages
+    )  # header + kernel + ramdisk
+    #image_info_list.append((second_offset, second_size, 'second'))
 
     return parsed
 
@@ -173,7 +223,7 @@ def parse_cmdline():
     parser.add_argument('-i', '--input', help='input file name', type=FileType('rb'),
                         required=True)
     parser.add_argument('-o', '--output', help='output directory', default='./')
-    parser.add_argument('--pagesize', help='page size', type=parse_int,
+    parser.add_argument('--page_size', help='page size', type=parse_int,
                         choices=[2**i for i in range(11,18)], default=0)
     return parser.parse_args()
 
@@ -187,7 +237,7 @@ def write_input_to_file(args, filename, size):
     with open(filename, 'wb') as f_out:
         f_out.write(args.input.read(size))
 
-    seek_padding(args.input, size, args.pagesize)
+    seek_padding(args.input, size, args.page_size)
 
 def fix_ramdisk_extension(header, filename):
     bytes = []
@@ -251,7 +301,7 @@ def write_data(args, header, off):
     write_str_to_file(file_prefix+'ramdisk_offset', '%08x' % header.ramdisk_offset)
     write_str_to_file(file_prefix+'second_offset', '%08x' % header.second_offset)
     write_str_to_file(file_prefix+'tags_offset', '%08x' % header.tags_offset)
-    write_str_to_file(file_prefix+'pagesize', '%d' % header.pagesize)
+    write_str_to_file(file_prefix+'page_size', '%d' % header.page_size)
     write_str_to_file(file_prefix+'name', header.name)
     if header.os_version:
         write_str_to_file(file_prefix+'os_version', header.os_version)
@@ -259,14 +309,19 @@ def write_data(args, header, off):
         write_str_to_file(file_prefix+'os_patch_level', header.os_patch_level)
     """
 
-    seek_padding(args.input, header.headersz, args.pagesize)
+    seek_padding(args.input, header.headersz, args.page_size)
 
     write_input_to_file(args, file_prefix+'zImage', header.kernel_size)
     write_input_to_file(args, file_prefix+'ramdisk', header.ramdisk_size)
     write_input_to_file(args, file_prefix+'second', header.second_size)
-    write_input_to_file(args, file_prefix+'dt', header.dt_size)
+    if header.dt_size > 1:
+        write_input_to_file(args, file_prefix+'dt', header.dt_size)
+    if header.recovery_dtbo_size > 0:
+        write_input_to_file(args, file_prefix+'recovery_dtbo', header.recovery_dtbo_size)
 
-    fn = fix_ramdisk_extension(header, file_prefix+'ramdisk')
+    fn = None
+    if header.ramdisk_size > 0:
+        fn = fix_ramdisk_extension(header, file_prefix+'ramdisk')
     header.Save(file_prefix+'bootimg.json')
 
     if fn:
@@ -340,22 +395,15 @@ def main():
     args = parse_cmdline()
     off = get_magic_off(args.input)
     header = read_header(args, off)
-    if os.path.isdir(args.output) and not args.output == './' :
+    if header.ramdisk_size > 0 and os.path.isdir(args.output) and not args.output == './' :
         ask = raw_input('The Output Dir %s have been exist. Can delete all It:(yes/n)\n' % (args.output))
         if ask == 'yes':
-            shutil.rmtree(os.path.join(args.output, 'ramdisk'))
+            ramfn = os.path.join(args.output, 'ramdisk')
+            if os.path.isdir(ramfn):
+                shutil.rmtree(ramfn)
 
-    print('BOARD_KERNEL_CMDLINE %s' % header.cmdline)
-    print('BOARD_KERNEL_BASE %08x' % header.kernel_offset)
-    print('BOARD_RAMDISK_OFFSET %08x' % header.ramdisk_offset)
-    print('BOARD_SECOND_OFFSET %08x' % header.second_offset)
-    print('BOARD_TAGS_OFFSET %08x' % header.tags_offset)
-    print('BOARD_PAGE_SIZE %d' % header.pagesize)
-    print('BOARD_SECOND_SIZE %d' % header.second_size)
-    print('BOARD_DT_SIZE %d' % header.dt_size)
-
-    if args.pagesize == 0:
-        args.pagesize = header.pagesize
+    if args.page_size == 0:
+        args.page_size = header.page_size
 
     write_data(args, header, off)
 
