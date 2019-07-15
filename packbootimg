@@ -407,7 +407,7 @@ def root_action(args, rootdir):
             format(version)))
 
 def get_prefix(infile):
-    (_prefix, _ext) = basename(infile).split('-')
+    (_prefix, _ext) = basename(infile).rsplit('-', 1)
     _prefix = join(dirname(infile),_prefix)
     return _prefix
 
