@@ -420,6 +420,9 @@ def process_ramdisk(args):
     else:
         value = inputjson(args)
     if not args.ramdisk:
+        if args.input['ramdisk_size'] == 0:
+            print("SYSTEM AS ROOT")
+            return
         if args.level == 0:
             _prefix = get_prefix(value)
             mfns = glob.glob(_prefix+'-ramdisk.gz')
