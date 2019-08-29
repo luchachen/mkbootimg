@@ -469,6 +469,9 @@ def process_ramdisk(args):
             f.write(_fd.read(filesize(_fd)))
         setattr(args, 'ramdisk', open(_fn, 'rb'))
 
+def process_dtb(args):
+    pass
+
 def process_cmdline(args):
     cmdline = ''
     if args.cmdline:
