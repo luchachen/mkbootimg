@@ -30,10 +30,10 @@ from subprocess import *
 import subprocess
 import shutil
 import pprint
-from mkimage  import mkimage_header, PART_MAGIC
 from string import atoi, replace
 from mkbootimg import *
 
+from lib.mkimage  import mkimage_header, PART_MAGIC
 ARMV8MAGIC='\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\x00\x01\x00\x00\x00'
 BOOT_HEADER_VERSION_ZERO=0
 BOOT_HEADER_VERSION_ONE=1
@@ -145,8 +145,8 @@ def process_input(args, cmdparse):
         if args.header_version == BOOT_HEADER_VERSION_ONE:
             if os.path.exists(os.path.join(_prefix, 'recovery_dtbo')):
                 setattr(args, 'recovery_dtbo', open(_prefix+'recovery_dtbo'))
-        if args.header_version > BOOT_HEADER_VERSION_ONE and args.dt == cmdparse.get_default('dt'):
-            setattr(args, 'dt', open(_prefix+'-dt'))
+        if args.header_version > BOOT_HEADER_VERSION_ONE and args.dtb == cmdparse.get_default('dtb'):
+            setattr(args, 'dtb', open(_prefix+'-dt'))
 
     except (IOError, ValueError):
         _dict = {}
@@ -394,7 +394,7 @@ def parse_cmdline():
     parser = ArgumentParser()
 
     igparser_group = parser.add_mutually_exclusive_group(required=True)
-    igparser_group.add_argument('--input', metavar='infile',  help='input the dirpath/filename of bootimg.json', action=JSONAction)
+    igparser_group.add_argument('-i', '--input', metavar='infile',  help='input the dirpath/filename of bootimg.json', action=JSONAction)
     igparser_group.add_argument('--kernel', help='path to the kernel', type=FileType('rb'))
 
     parser.add_argument('-l', '--level',  help='Root Android Level, 0: only re-pack, 1: (default) only adbd permissive,  2: full permissive', type=parse_int,
