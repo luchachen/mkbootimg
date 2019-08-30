@@ -38,6 +38,10 @@ ARMV8MAGIC='\x7fELF\x02\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\xb7\
 BOOT_HEADER_VERSION_ZERO=0
 BOOT_HEADER_VERSION_ONE=1
 
+__PY_SS_PATH__=os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
+#add the packbootimg path to PATH
+os.environ['PATH']=os.path.join(__PY_SS_PATH__, 'bin') + ':' + os.environ['PATH']
+
 def getscript():
     return os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
@@ -232,15 +236,15 @@ def _run(cmd):
 
 def permissive_adbd(args, rootdir, ver):
     com = ('{sepinject:s}  -Z adbd -P {sepolicy:s} -o {outfile:s}'.format( \
-        sepinject=join(getscript(), 'sepolicy-inject-%d' % norm_version(ver)),\
+        sepinject='sepolicy-inject-%d' % norm_version(ver),\
         sepolicy=join(rootdir, 'sepolicy'), outfile=join(dirname(rootdir), 'sepolicy')))
     _run(com)
     com = ('{sepinject:s}  -Z shell -P {outfile:s} -o {sepolicy:s}'.format(  \
-        sepinject=join(getscript(), 'sepolicy-inject-%d' % norm_version(ver)),\
+        sepinject='sepolicy-inject-%d' % norm_version(ver),\
         outfile=join(dirname(rootdir), 'sepolicy'), sepolicy=join(rootdir, 'sepolicy')))
     _run(com)
     com = ('{ckpolicy:s}  -M -b {sepolicy:s}'.format(  \
-        ckpolicy=join(getscript(), 'checkpolicy-%d' % norm_version(ver)),\
+        ckpolicy='checkpolicy-%d' % norm_version(ver),\
         sepolicy=join(rootdir, 'sepolicy')))
     _run(com)
 
@@ -318,8 +322,8 @@ def process_ramdisk(args):
             root_action(args, _fn)
         _fd = open(_fn+'.gz', 'wb')
         #os.chdir(value)
-        p1 = Popen([join(getscript(), "mkbootfs"), "-f", join(getscript(), "etc/boot_filesystem_config.txt"), _fn], stdout=PIPE)
-        p2 = Popen([join(getscript(), "minigzip")], stdin=p1.stdout, stdout=_fd)
+        p1 = Popen(["mkbootfs", "-f", join(getscript(), "etc/boot_filesystem_config.txt"), _fn], stdout=PIPE)
+        p2 = Popen("minigzip", stdin=p1.stdout, stdout=_fd)
         output = p2.communicate()[0]
 
         #os.chdir(_curdir)
@@ -442,7 +446,7 @@ def process_sign(args):
     #qcom 
     if os.path.isdir(args.sign):
         com = ('{bootsigner:s} /boot {infile:s} {veritypk:s} {veritypem:s} {infile:s}'.format(\
-                bootsigner=join(getscript(), 'boot_signer'), infile=os.path.abspath(args.output.name), \
+                bootsigner='boot_signer', infile=os.path.abspath(args.output.name), \
                 veritypk=join(args.sign, 'verity.pk8'), veritypem=join(args.sign,'verity.x509.pem')))
         _run(com)
     else:
