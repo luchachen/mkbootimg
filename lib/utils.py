@@ -39,10 +39,11 @@ class Bunch:
             if key in ('cmdline', 'extra_cmdline', 'product_name'):
                 setattr(self, key, (d[key][0]).partition(b'\0')[0].decode())
                 continue
-            if key not in ('args', 'a', 'c', 'b', 'm', 'y'):
+            if key not in ('args', 'a', 'c', 'b', 'm', 'y', 'image_info'):
                 setattr(self, key, d[key])
 
-        self.header_version = self.version
+     
+        self.header_version = self.version if self.version < 5 else 0
         self.pagesize = self.page_size
 
         # find common base of all loading addresses
@@ -59,7 +60,7 @@ class Bunch:
         tags_offset = self.kernel_ramdisk_second_info[6]
         if tags_offset > 0:
             base = min(base, tags_offset)
-        if self.version > 1:
+        if self.header_version > 1:
             base = min(base, self.dtb_load_address)
         base = ROUNDDOWN(base, self.page_size)
         if (base&0xffff) == 0x8000:
@@ -69,7 +70,7 @@ class Bunch:
         self.ramdisk_offset = ramdisk_offset - base if ramdisk_offset > 0 else 0
         self.second_offset = second_offset - base if second_offset > 0 else 0
         self.tags_offset = tags_offset - base if  tags_offset > 0 else 0
-        if self.version > 1:
+        if self.header_version > 1:
             base = min(base, self.dtb_load_address)
             self.dtb_offset = self.dtb_load_address - base
 
@@ -87,7 +88,7 @@ class Bunch:
             m = os_patch_level&0xf
             self.os_patch_level = '%04d-%02d-%02d' % (y,m,0)
 
-        if self.version == 0:
+        if self.header_version == 0:
             self.boot_header_size = calcsize(fmt)
 
         self.path = os.path.join(os.getcwd(), 'bootimg.json')
@@ -129,7 +130,7 @@ class Bunch:
                         _data[k] = binascii.hexlify(v)
                     elif k != 'path':
                         _data[k] = v
-                json.dump(_data, f, indent=2, skipkeys=True)
+                json.dump(_data, f, indent=2, skipkeys=True, sort_keys=True)
             finally:
                 f.close()
         except (IOError, TypeError):

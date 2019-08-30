@@ -124,6 +124,7 @@ def write_data(args, header, off):
         makedirs(args.out)
 
 
+    """
     seek_padding(args.boot_img, header.boot_header_size, header.page_size)
 
     write_input_to_file(args, file_prefix+'zImage', header.kernel_size)
@@ -133,14 +134,15 @@ def write_data(args, header, off):
         write_input_to_file(args, file_prefix+'dt', header.dtb_size)
     if header.recovery_dtbo_size > 0:
         write_input_to_file(args, file_prefix+'recovery_dtbo', header.recovery_dtbo_size)
+    """
 
     fn = None
     if header.ramdisk_size > 0:
-        fn = fix_ramdisk_extension(header, file_prefix+'ramdisk')
+        fn = fix_ramdisk_extension(header, os.path.join(args.out, 'ramdisk'))
     header.Save(file_prefix+'bootimg.json')
 
     if fn:
-        _ramdisk = os.path.join(os.path.dirname(fn), 'ramdisk')
+        _ramdisk = os.path.join(os.path.dirname(fn), 'root')
         if not exists(_ramdisk):
             makedirs(_ramdisk)
         if __LIBARCHIVE__:
@@ -166,15 +168,17 @@ def write_data(args, header, off):
             os.chdir(_curdir)
             _fd.close()
         else:
-            efn = extract_archive(fn, verbosity=0)
-            _efn = os.path.join(os.path.dirname(fn), efn)
-            os.rename(efn, _efn)
-            extract_archive(_efn, verbosity=0, outdir=_ramdisk, interactive=True)
+            efn = extract_archive(fn, verbosity=0, outdir=args.out)
+            _efn = os.path.join(efn, 'ramdisk')
+            #print(_efn)
+            #os.rename(efn, _efn)
+            extract_archive(_efn, verbosity=1, outdir=_ramdisk, interactive=True)
 
 
     if header.kernel_size >= 2:
-        if is_gzip_package(file_prefix+'zImage'):
-            with open(file_prefix+'zImage', 'rb') as f_in:
+        kfn = os.path.join(args.out, 'kernel')
+        if is_gzip_package(kfn):
+            with open(kfn, 'rb') as f_in:
                 # seek past gzip header
                 f_in.seek(10)
 
@@ -187,8 +191,8 @@ def write_data(args, header, off):
                 with open(file_prefix+'zImage.fdt', 'wb') as f_out:
                     f_out.write(decomp.unused_data[8:])
 
-        elif not is_arm64(file_prefix+'zImage'):
-            with open(file_prefix+'zImage', 'rb') as f_in:
+        elif not is_arm64(kfn):
+            with open(kfn, 'rb') as f_in:
                 # get kernel size
                 f_in.seek(0x28)
                 unpacked = auto_unpack('2I', f_in)
@@ -208,20 +212,18 @@ def write_data(args, header, off):
 
 def main():
     args = parse_cmdline()
-    create_out_dir(args.out)
     off = get_magic_off(args.boot_img)
     args.boot_img.seek(off)
+    if os.path.isdir(args.out) and not args.out == './' :
+        ask = raw_input('The Output Dir %s have been exist. Can delete all It:(Y/n)\n' % (args.out))
+        if ask == 'Y':
+            shutil.rmtree(args.out)
+    create_out_dir(args.out)
     info=unpack_bootimage(args)
     header=Bunch(info)
     args.page_size = header.page_size
 
     pprint.pprint(header.Get(None))
-    if header.ramdisk_size > 0 and os.path.isdir(args.out) and not args.out == './' :
-        ask = raw_input('The Output Dir %s have been exist. Can delete all It:(yes/n)\n' % (args.out))
-        if ask == 'yes':
-            ramfn = os.path.join(args.out, 'ramdisk')
-            if os.path.isdir(ramfn):
-                shutil.rmtree(ramfn)
 
     write_data(args, header, off)
 

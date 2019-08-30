@@ -16,7 +16,7 @@
 
 from __future__ import print_function
 from sys import argv, exit, stderr
-from argparse import ArgumentParser, FileType, Action
+from argparse import ArgumentParser, FileType, Action, ArgumentTypeError
 import os
 from os import fstat
 from os.path import basename, dirname,join
@@ -86,6 +86,9 @@ class JSONAction(Action):
                 raise ValueError('Dir {0:s} argument contain too many json: {1:s}'.
                     format(value, js))
             value = js[0]
+        elif not os.path.exists(value):
+            raise ArgumentTypeError('not found Dir {0:s}'.format(value))
+
         try:
             with open(value, 'rb') as f_in:
                 _dict = json.load(f_in)
@@ -138,19 +141,20 @@ def process_input(args, cmdparse):
     elif args.kernel:
         value = args.kernel.name
     try:
-        _prefix = get_prefix(value)
-        mfns = glob.glob(_prefix+'-zImage')
+        _prefix = os.path.dirname(value) + os.sep
+        mfns = glob.glob(_prefix+'kernel')
         if len(mfns) > 1:
             print('warning: too many files %s' % mfns)
         if args.kernel == cmdparse.get_default('kernel'):
             setattr(args, 'kernel', open(mfns[0]))
         if args.second == cmdparse.get_default('second'):
-            setattr(args, 'second', open(_prefix+'-second'))
+            if os.path.exists(os.path.join(_prefix, 'second')):
+                setattr(args, 'second', open(_prefix+'second'))
         if args.header_version == BOOT_HEADER_VERSION_ONE:
             if os.path.exists(os.path.join(_prefix, 'recovery_dtbo')):
                 setattr(args, 'recovery_dtbo', open(_prefix+'recovery_dtbo'))
         if args.header_version > BOOT_HEADER_VERSION_ONE and args.dtb == cmdparse.get_default('dtb'):
-            setattr(args, 'dtb', open(_prefix+'-dt'))
+            setattr(args, 'dtb', open(_prefix+'dtb'))
 
     except (IOError, ValueError):
         _dict = {}
@@ -306,13 +310,10 @@ def process_ramdisk(args):
             print("SYSTEM AS ROOT")
             return
         if args.level == 0:
-            _prefix = get_prefix(value)
-            mfns = glob.glob(_prefix+'-ramdisk.gz')
-            if len(mfns) > 1:
-                raise(ValueError(' auto ramdisks:{0:s} in level {1:d}'.
-                    format(mfns, 0)))
+           _prefix = os.path.dirname(value) + os.sep
+           value = _prefix+'ramdisk.gz'
         else:
-            value = join(dirname(value), 'ramdisk')
+            value = join(dirname(value), 'root')
     else:
         value = os.path.normpath(args.ramdisk)
     if os.path.isdir(value):
@@ -371,8 +372,9 @@ def process_cmdline(args):
                 try:
                     _fn = join(args.rootdir, 'verity_key')
                     sha = sha1()
-                    with open(_fn, 'rb') as _fd:
-                        update_sha(sha, _fd)
+                    if os.path.exists(_fn):
+                        with open(_fn, 'rb') as _fd:
+                            update_sha(sha, _fd)
 
                     vsha = sha1()
                     vfn = join(getscript(), 'security', 'verity_key')
