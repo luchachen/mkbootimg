@@ -34,6 +34,7 @@ class Bunch:
     and Save to Jsons
     """
     def __init__(self, d):
+        fmt = '8s10I16s512s32s1024sIQI'
         for key in d:
             if key in ('cmdline', 'extra_cmdline', 'product_name'):
                 setattr(self, key, (d[key][0]).partition(b'\0')[0].decode())
@@ -85,6 +86,9 @@ class Bunch:
             y = (os_patch_level>>4) + 2000
             m = os_patch_level&0xf
             self.os_patch_level = '%04d-%02d-%02d' % (y,m,0)
+
+        if self.version == 0:
+            self.boot_header_size = calcsize(fmt)
 
         self.path = os.path.join(os.getcwd(), 'bootimg.json')
 
